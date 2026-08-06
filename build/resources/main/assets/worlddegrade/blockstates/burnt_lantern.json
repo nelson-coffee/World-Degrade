@@ -1,0 +1,10 @@
+{
+ "variants": {
+  "hanging=false": {
+   "model": "worlddegrade:block/burnt_lantern"
+  },
+  "hanging=true": {
+   "model": "worlddegrade:block/burnt_lantern_hanging"
+  }
+ }
+}

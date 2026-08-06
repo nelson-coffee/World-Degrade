@@ -1,0 +1,29 @@
+/degrade
+/time set day
+/gamerule doDaylightCycle false
+/degrade
+/degrade undo
+/degrade
+/degrade undo
+/degrade
+/degrade undo
+/degrade
+/degrade undo
+/degrade
+/degrade undo
+/degrade
+/degrade playerblockset
+/degrade
+/time set midnight
+/time set day
+/degrade
+/degrade playerblockset
+/degrade
+/weather clear
+/degrade
+/weather clear
+/degrade
+/weather clear
+/degrade
+/weather clear
+/degrade

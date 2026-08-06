@@ -1,0 +1,149 @@
+local screenWidth, screenHeight = term.getSize()
+local taskbarHeight = 0
+local taskbarBackgroundColor = colors.gray
+local taskbarTextColor = colors.black
+local startButtonWidth = 14
+local startMenuWidth = 25
+local startMenuHeight = 15
+local startButtonX = 1
+local startButtonY = screenHeight - taskbarHeight
+local startMenuX = startButtonX
+local startMenuY = startButtonY - startMenuHeight - 0
+
+local windows = {}
+local openApps = {}
+local isStartMenuOpen = false
+
+local programs = {
+    { name = "Notepad", icon = "N", file = "notepad.txt" },
+    { name = "NGBank App", icon = "B", file = "ngbank.txt" },
+    { name = "NGcord", icon = "C", file = "ngcord.txt" },
+    -- Add more program entries here
+}
+
+local function clearScreen()
+    term.setBackgroundColor(colors.blue)
+    term.clear()
+    term.setTextColor(colors.white)
+end
+
+local function drawTaskbar()
+    term.setCursorPos(1, screenHeight - taskbarHeight + 1)
+    term.setBackgroundColor(taskbarBackgroundColor)
+    term.setTextColor(taskbarTextColor)
+    term.clearLine()
+    
+    local taskbarText = " "
+    for _, app in ipairs(openApps) do
+        taskbarText = taskbarText .. "[" .. app.icon .. "] "
+    end
+    
+    term.setCursorPos(1, screenHeight - taskbarHeight + 1)
+    term.write(taskbarText)
+end
+
+local function drawStartButton()
+    term.setCursorPos(startButtonX, startButtonY)
+    term.setBackgroundColor(colors.gray)
+    term.setTextColor(colors.black)
+    term.clearLine()
+    term.write("Start")
+end
+
+local function drawStartMenu()
+    term.setCursorPos(startMenuX, startMenuY)
+    term.setTextColor(colors.black)
+
+    term.setBackgroundColor(colors.lightGray)
+    for y = startMenuY, startMenuY + startMenuHeight - 1 do
+        term.setCursorPos(startMenuX, y)
+        term.write(string.rep(" ", startMenuWidth))
+    end
+    
+    local startY = startMenuY + 2
+
+    for _, program in ipairs(programs) do
+        term.setCursorPos(startMenuX + 1, startY)
+        term.write("[" .. program.icon .. "] " .. program.name)
+        startY = startY + 1
+    end
+    
+    term.setCursorPos(startMenuX + 1, startMenuY + startMenuHeight - 2)
+    term.write("[S] Shut down")
+    term.setCursorPos(startMenuX + 1, startMenuY + startMenuHeight - 1)
+    term.write("[R] Restart")
+end
+
+local function openAppInWindow(program)
+    local window = window.create(term.current(), 2, 2, 30, 10, true)
+    window.setBackgroundColor(colors.black)
+    window.setTextColor(colors.white)
+    window.clear()
+    window.setCursorPos(1, 1)
+    window.write("[" .. program.icon .. "] " .. program.name)
+    window.setCursorPos(1, 2)
+    -- To emulate opening a file in a window, we'll write the file's contents to the window
+    local file = fs.open(program.file, "r")
+    if file then
+        local line = file.readLine()
+        local lineNumber = 2
+        while line do
+            window.setCursorPos(1, lineNumber)
+            window.write(line)
+            line = file.readLine()
+            lineNumber = lineNumber + 1
+        end
+        file.close()
+    else
+        window.write("File not found: " .. program.file)
+    end
+    table.insert(windows, window)
+    table.insert(openApps, program)
+end
+
+while true do
+    clearScreen()
+    
+    if not isStartMenuOpen then
+        drawTaskbar()
+        drawStartButton()
+    else
+        drawTaskbar()
+        drawStartButton()
+        drawStartMenu()
+    end
+
+    local event, button, x, y = os.pullEvent("mouse_click")
+    
+    if button == 1 then -- Check for left-click
+        if y == startButtonY and x <= startButtonWidth then
+            -- Start button clicked
+            isStartMenuOpen = not isStartMenuOpen
+        elseif y >= startMenuY + 2 and y <= startMenuY + startMenuHeight - 3
+                and x >= startMenuX + 1 and x <= startMenuX + startMenuWidth - 2
+                and isStartMenuOpen then
+            -- Click on start menu program icons
+            local programIndex = y - startMenuY - 1
+            local program = programs[programIndex]
+            if program then
+                openAppInWindow(program) -- Open the program in a window
+            end
+            isStartMenuOpen = false
+        elseif y == startMenuY + startMenuHeight - 2
+                and x >= startMenuX + 1 and x <= startMenuX + startMenuWidth - 2
+                and isStartMenuOpen then
+            -- Click on shut down button
+            os.shutdown()
+        elseif y == startMenuY + startMenuHeight - 1
+                and x >= startMenuX + 1 and x <= startMenuX + startMenuWidth - 2
+                and isStartMenuOpen then
+            -- Click on restart button
+            os.reboot()
+        end
+    end
+    
+    -- Draw open windows
+    for _, window in ipairs(windows) do
+        window.redraw()
+    end
+end

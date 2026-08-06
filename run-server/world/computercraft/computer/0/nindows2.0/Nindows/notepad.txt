@@ -1,0 +1,120 @@
+local args = {...}
+
+if #args < 1 then
+    print("Usage: notepad <filename>")
+    return
+end
+
+local filename = args[1]
+
+-- Check if the file exists
+local fileContent = {}
+if fs.exists(filename) then
+    local file = fs.open(filename, "r")
+    local line = file.readLine()
+    while line do
+        table.insert(fileContent, line)
+        line = file.readLine()
+    end
+    file.close()
+end
+
+local screenWidth, screenHeight = term.getSize()
+local editWindow = window.create(term.current(), 1, 1, screenWidth, screenHeight - 1, true)
+local statusWindow = window.create(term.current(), 1, screenHeight, screenWidth, 1, true)
+local cursorX, cursorY = 1, 1
+
+local function drawStatus()
+    statusWindow.setBackgroundColor(colors.gray)
+    statusWindow.setTextColor(colors.white)
+    statusWindow.clear()
+    statusWindow.setCursorPos(1, 1)
+    statusWindow.write("Ctrl+S: Save | Ctrl+Q: Quit | Cursor: " .. cursorX .. "," .. cursorY)
+end
+
+local function drawWindow()
+    editWindow.setBackgroundColor(colors.black)
+    editWindow.setTextColor(colors.white)
+    editWindow.clear()
+    for i, line in ipairs(fileContent) do
+        editWindow.setCursorPos(1, i)
+        editWindow.write(line)
+    end
+    editWindow.setCursorPos(cursorX, cursorY)
+end
+
+local function editFile()
+    drawStatus()
+    drawWindow()
+
+    while true do
+        local event, param1, param2, param3 = os.pullEvent()
+        if event == "char" then
+            if not fileContent[cursorY] then
+                fileContent[cursorY] = ""
+            end
+            local line = fileContent[cursorY]
+            fileContent[cursorY] = line:sub(1, cursorX - 1) .. param1 .. line:sub(cursorX)
+            cursorX = cursorX + 1
+        elseif event == "key" then
+            if param1 == keys.backspace then
+                if cursorX > 1 then
+                    local line = fileContent[cursorY]
+                    fileContent[cursorY] = line:sub(1, cursorX - 2) .. line:sub(cursorX)
+                    cursorX = cursorX - 1
+                elseif cursorY > 1 then
+                    cursorY = cursorY - 1
+                    cursorX = #fileContent[cursorY] + 1
+                    fileContent[cursorY] = fileContent[cursorY] .. (fileContent[cursorY + 1] or "")
+                    table.remove(fileContent, cursorY + 1)
+                end
+            elseif param1 == keys.enter then
+                table.insert(fileContent, cursorY + 1, "")
+                cursorY = cursorY + 1
+                cursorX = 1
+            elseif param1 == keys.left then
+                if cursorX > 1 then
+                    cursorX = cursorX - 1
+                elseif cursorY > 1 then
+                    cursorY = cursorY - 1
+                    cursorX = #fileContent[cursorY] + 1
+                end
+            elseif param1 == keys.right then
+                if cursorX <= #fileContent[cursorY] then
+                    cursorX = cursorX + 1
+                elseif cursorY < #fileContent then
+                    cursorY = cursorY + 1
+                    cursorX = 1
+                end
+            elseif param1 == keys.up then
+                if cursorY > 1 then
+                    cursorY = cursorY - 1
+                    cursorX = math.min(cursorX, #fileContent[cursorY] + 1)
+                end
+            elseif param1 == keys.down then
+                if cursorY < #fileContent then
+                    cursorY = cursorY + 1
+                    cursorX = math.min(cursorX, #fileContent[cursorY] + 1)
+                end
+            elseif param1 == keys.leftCtrl or param1 == keys.rightCtrl then
+                local _, key = os.pullEvent("key")
+                if key == keys.s then
+                    -- Save the file
+                    local file = fs.open(filename, "w")
+                    for i, line in ipairs(fileContent) do
+                        file.writeLine(line)
+                    end
+                    file.close()
+                    statusWindow.setCursorPos(1, 1)
+                    statusWindow.write("File saved as " .. filename)
+                elseif key == keys.q then
+                    return
+                end
+            end
+        end
+        drawStatus()
+        drawWindow()
+    end
+end
+
+editFile()

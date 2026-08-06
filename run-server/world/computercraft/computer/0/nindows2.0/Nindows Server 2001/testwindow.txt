@@ -1,0 +1,83 @@
+local screenWidth, screenHeight = term.getSize()
+
+local function drawStartButton()
+    term.setCursorPos(screenWidth - 13, screenHeight)
+    term.setBackgroundColor(colors.white)
+    term.setTextColor(colors.black)
+    term.write("Start")
+end
+
+local function drawStartMenu()
+    term.setCursorPos(1, 1)
+    term.setBackgroundColor(colors.white)
+    term.setTextColor(colors.black)
+    term.clear()
+
+    term.setCursorPos(2, 2)
+    term.write("All Apps")
+    
+    -- Draw app tiles
+    local apps = {
+        "App 1",
+        "App 2",
+        "App 3",
+        -- Add more app names here
+    }
+    
+    local tileWidth = 25
+    local startX = 2
+    local startY = 4
+
+    for _, app in ipairs(apps) do
+        term.setCursorPos(startX, startY)
+        term.write(app)
+        startY = startY + 2
+    end
+end
+
+-- Your clickable button code
+local x, y = 2, 4
+local x2, y2 = 2, 6
+local x3, y3 = 2, 8
+local choice1 = " Left "
+local choice2 = " Right "
+local choice3 = " Middle "
+ 
+local function drawMenu()
+    image = paintutils.loadImage("backwall")
+    paintutils.drawImage(image, 1, 1)
+    term.setCursorPos(x, y)
+    term.setBackgroundColor(colors.black)
+    term.setTextColor(8)
+    write(choice1)
+    term.setCursorPos(x2, y2)
+    write(choice2)
+    term.setCursorPos(x3, y3)
+    write(choice3)
+end
+
+drawStartMenu()
+drawStartButton()
+
+while true do
+    local event, button, cx, cy = os.pullEvent()
+    
+    if event == "mouse_click" then
+        if cy == screenHeight then
+            -- Start button clicked
+            term.clear()
+            term.setCursorPos(1, 1)
+            print("Start Menu Clicked")
+            break
+        elseif cx >= x and cx < x + choice1:len() and cy == y and button == 1 then
+            term.setCursorPos(28, 6)
+            print("Left button clicked!")
+        elseif cx >= x2 and cx < x2 + choice2:len() and cy == y2 and button == 1 then
+            term.setCursorPos(28, 6)
+            print("Right button clicked!")
+        elseif cx >= x3 and cx < x3 + choice3:len() and cy == y3 and button == 1 then
+            term.setCursorPos(28, 6)
+            print("Middle button clicked!")
+        end
+    end
+end

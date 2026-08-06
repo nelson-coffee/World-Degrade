@@ -1,0 +1,59 @@
+local windows = {}
+
+local function createWindow(x, y, width, height, title, content)
+    local window = {
+        x = x,
+        y = y,
+        width = width,
+        height = height,
+        title = title,
+        content = content,
+    }
+    table.insert(windows, window)
+end
+
+local function drawWindows()
+    for _, window in ipairs(windows) do
+        term.setBackgroundColor(colors.gray)
+        term.setTextColor(colors.white)
+        term.setCursorPos(window.x, window.y)
+        term.clearLine()
+        term.write("[" .. window.title .. "]")
+        
+        for i = 1, window.height - 2 do
+            term.setCursorPos(window.x, window.y + i)
+            term.clearLine()
+            term.setCursorPos(window.x, window.y + i)
+            term.write(window.content[i] or "")
+        end
+    end
+end
+
+local function clearScreen()
+    term.setBackgroundColor(colors.blue)
+    term.clear()
+    term.setTextColor(colors.white)
+end
+
+local function drawButton(x, y, text)
+    term.setCursorPos(x, y)
+    term.setBackgroundColor(colors.gray)
+    term.setTextColor(colors.white)
+    term.write(text)
+end
+
+clearScreen()
+
+while true do
+    drawWindows()
+    drawButton(5, 2, "Open Notepad")
+
+    local event, _, x, y = os.pullEvent("mouse_click")
+    
+    if event == "mouse_click" and x >= 5 and x <= 18 and y == 2 then
+        createWindow(5, 5, 30, 10, "Notepad", {
+            "Hello, this is a window!",
+            "You can type here.",
+        })
+    end
+end
