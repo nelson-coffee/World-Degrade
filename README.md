@@ -1,10 +1,13 @@
 # World Degrade
  
+### A mod for turning player made structures into ruins
+***
+
 This is a Minecraft Mod that adds one thing
 
 - the /degrade command
 
-But that one command does quite a lot it converts all player built structures into ruins.
+But that one command does quite a lot, it converts all player built structures into ruins.
 ## How it works
 
 From the start of your world every player placed block is tracked and stored then when you run the degrade command the following happens:
@@ -13,13 +16,15 @@ From the start of your world every player placed block is tracked and stored the
 - All player placed blocks are found and go through a degrade cycle
 - dug out tunnels and rooms collapse
 
-But thats just for vanilla Minecraft if you have any of the following mods installed there are a few other things that happen; Create, Create aeronautics, Sable, Waystones, Exposure, CC:Tweaked and/or Supplementaries
+You can also run /degrade undo to restore your world.
+But thats just for vanilla Minecraft if you have any of the following mods installed there are a few other things that happen; Create, Create aeronautics, Sable, Waystones, Chipped, Exposure, CC:Tweaked and/or Supplementaries
 
 - For Exposure Photos left in frames and chests age and film left in chests develops scratches and chemical/water damage (by far one of the coolest features)
 - For waystones all waystones are deleted from players known waystones and the regular waystones develop into mossy wasystones
 - In create everything breaks with a percentage chance with the chance for cogs to fall off to the ground
 - This mod also has support for degrading sable sub-levels so your create aeronautics ships can degrade just fine
 - In CC:Tweaked any files on computers or floppy disks have the chance to get corrupted
+- All of Chipped's blocks are supported
 - Literally the only thing for Supplementaries was making globes degrade into sepia globes
 
 Any blocks not recognised my the mod will just get destroyed at a percentage chance.
@@ -27,3 +32,6 @@ Any blocks not recognised my the mod will just get destroyed at a percentage cha
 
 - Assembled create contraptions including trains are extremely buggy as of now the current fix is to disassemble all contraptions before a degrade or sometimes a server restart fixes it
 
+## Note
+***
+A Fabric and Forge version will be coming in the future
