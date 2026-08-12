@@ -27,3 +27,9 @@
 /degrade
 /weather clear
 /degrade
+/time set day
+/gamerule doDaylightCycle false
+/gamerule doWeatherCycle false
+/degrade
+/degrade playerblockset
+/degrade

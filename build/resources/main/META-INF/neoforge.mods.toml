@@ -4,8 +4,9 @@ license="MIT"
 
 [[mods]]
 modId="worlddegrade"
-version="1.0.0"
+version="1.0.1"
 displayName="World Degrade"
+logoFile="assets/worlddegrade/mod-icon-final.png"
 authors="Ned"
 description='''Lets operators degrade player-made structures into ruins via the /degrade command.'''
 
