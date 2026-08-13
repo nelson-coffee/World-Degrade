@@ -33,5 +33,5 @@ Any blocks not recognised my the mod will just get destroyed at a percentage cha
 - Assembled create contraptions including trains are extremely buggy as of now the current fix is to disassemble all contraptions before a degrade or sometimes a server restart fixes it
 
 ## Note
-***
+
 A Fabric and Forge version will be coming in the future
