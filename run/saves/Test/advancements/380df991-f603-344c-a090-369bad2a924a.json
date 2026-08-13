@@ -2486,5 +2486,23 @@
     },
     "done": true
   },
+  "supplementaries:recipe/sus_sand": {
+    "criteria": {
+      "has_item_minecraft_sand_1": "2026-08-14 07:13:19 +1000"
+    },
+    "done": true
+  },
+  "minecraft:recipes/building_blocks/glass": {
+    "criteria": {
+      "has_smelts_to_glass": "2026-08-14 07:13:19 +1000"
+    },
+    "done": true
+  },
+  "minecraft:recipes/building_blocks/sandstone": {
+    "criteria": {
+      "has_sand": "2026-08-14 07:13:19 +1000"
+    },
+    "done": true
+  },
   "DataVersion": 3955
 }
