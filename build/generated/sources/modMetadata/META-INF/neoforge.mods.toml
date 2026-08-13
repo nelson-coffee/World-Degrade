@@ -1,13 +1,13 @@
 modLoader="javafml"
 loaderVersion="[4,)"
-license="MIT"
+license="GPLv3"
 
 [[mods]]
 modId="worlddegrade"
 version="1.0.1"
 displayName="World Degrade"
 logoFile="assets/worlddegrade/mod-icon-final.png"
-authors="Ned"
+authors="Nelson_Coffee64"
 description='''Lets operators degrade player-made structures into ruins via the /degrade command.'''
 
 [[dependencies.worlddegrade]]
