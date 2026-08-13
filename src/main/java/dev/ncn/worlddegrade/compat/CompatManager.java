@@ -41,6 +41,7 @@ public final class CompatManager {
         register("exposure", () -> new dev.ncn.worlddegrade.compat.exposure.ExposureCompat());
         register("supplementaries", () -> new dev.ncn.worlddegrade.compat.supplementaries.SupplementariesCompat());
         register("computercraft", () -> new dev.ncn.worlddegrade.compat.computercraft.ComputerCraftCompat());
+        register("rechiseled", () -> new dev.ncn.worlddegrade.compat.rechiseled.RechiseledCompat());
     }
 
     private static void register(String modId, Supplier<ModCompat> factory) {

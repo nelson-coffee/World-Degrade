@@ -9,9 +9,11 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.level.block.Blocks;
 
 public class PortalBreakEffect implements DegradeEffect {
+    private static final org.slf4j.Logger LOGGER = com.mojang.logging.LogUtils.getLogger();
+
     private static final float[] BREAK_CHANCE = {0.5f, 0.5f, 1.0f, 1.0f, 1.0f};
 
-    private static final int MAX_PORTAL_BLOCKS = 1024;
+    private static final int MAX_PORTAL_BLOCKS = 4096;
 
     @Override
     public void apply(DegradeContext ctx) {
@@ -52,6 +54,14 @@ public class PortalBreakEffect implements DegradeEffect {
             }
         }
         handled.addAll(sheet);
+        // A portal is extinguished whole or not at all. If the sheet is somehow larger than the
+        // safety cap the flood fill is incomplete, so breaking what was found would leave a
+        // half-lit portal and the undiscovered remainder would be rolled again separately.
+        if (sheet.size() >= MAX_PORTAL_BLOCKS) {
+            LOGGER.warn("World Degrade: nether portal at {} exceeds {} blocks; leaving it intact",
+                    start, MAX_PORTAL_BLOCKS);
+            return;
+        }
         if (!ctx.roll(chance)) {
             return;
         }

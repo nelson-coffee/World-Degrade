@@ -40,6 +40,8 @@ import java.util.Set;
 import java.util.UUID;
 
 public class ContraptionDegrader implements RunWork {
+    private static final org.slf4j.Logger LOGGER = com.mojang.logging.LogUtils.getLogger();
+
     private static final int DISASSEMBLE_PER_TICK = 2;
     private static final int CHUNKS_PER_TICK = 4;
     private static final int BOX_MARGIN = 2;
@@ -185,7 +187,12 @@ public class ContraptionDegrader implements RunWork {
         if (bounds == null) {
             return new LongOpenHashSet();
         }
-        return collectMaterialized(level, bounds, () -> TrainWrecker.teardown(train));
+        return collectMaterialized(level, bounds, () -> {
+            if (!TrainWrecker.teardown(train)) {
+                LOGGER.warn("World Degrade: train {} could not be torn down; any blocks it did "
+                        + "materialise are still degraded", train.id);
+            }
+        });
     }
 
     private static LongOpenHashSet collectMaterialized(ServerLevel level, AABB box, Runnable action) {

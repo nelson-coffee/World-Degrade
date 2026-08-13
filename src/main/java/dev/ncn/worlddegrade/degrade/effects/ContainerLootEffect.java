@@ -1,19 +1,19 @@
 package dev.ncn.worlddegrade.degrade.effects;
 
 import dev.ncn.worlddegrade.degrade.DegradeContext;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.entity.RandomizableContainerBlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.ChestType;
 import net.neoforged.neoforge.capabilities.Capabilities;
 import net.neoforged.neoforge.items.IItemHandler;
 import net.neoforged.neoforge.items.IItemHandlerModifiable;
 
-import java.util.Collections;
-import java.util.IdentityHashMap;
-import java.util.Set;
-
 public class ContainerLootEffect implements DegradeEffect {
-    private final Set<IItemHandler> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+    private final LongOpenHashSet lootedPositions = new LongOpenHashSet();
 
     @Override
     public void apply(DegradeContext ctx) {
@@ -27,12 +27,27 @@ public class ContainerLootEffect implements DegradeEffect {
                 continue;
             }
             ctx.claim(pos);
-            boolean claimed = ctx.claimLoot(pos);
-            if (!visited.add(handler) || !claimed) {
+            if (!claimInventory(ctx, pos) || !ctx.claimLoot(pos)) {
                 continue;
             }
             lootHandler(ctx, pos, modifiable);
         }
+    }
+
+    // Both halves of a double chest hand back the same combined inventory, and the item-handler
+    // capability builds a fresh wrapper on every lookup, so the halves can only be paired by
+    // position. This set spans the whole run because a double chest can straddle a chunk border,
+    // which puts each half in a different DegradeContext.
+    private boolean claimInventory(DegradeContext ctx, BlockPos pos) {
+        if (!lootedPositions.add(pos.asLong())) {
+            return false;
+        }
+        BlockState state = ctx.state(pos);
+        if (state.getBlock() instanceof ChestBlock && state.hasProperty(ChestBlock.TYPE)
+                && state.getValue(ChestBlock.TYPE) != ChestType.SINGLE) {
+            lootedPositions.add(pos.relative(ChestBlock.getConnectedDirection(state)).asLong());
+        }
+        return true;
     }
 
     private static void lootHandler(DegradeContext ctx, BlockPos pos, IItemHandlerModifiable inventory) {

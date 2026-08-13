@@ -41,6 +41,12 @@ public final class CoverageAudit {
         if (net.neoforged.fml.ModList.get().isLoaded("chipped")) {
             report("Chipped", "chipped");
         }
+        if (net.neoforged.fml.ModList.get().isLoaded("rechiseled")) {
+            report("Rechiseled", "rechiseled");
+        }
+        if (net.neoforged.fml.ModList.get().isLoaded("rechiseledcreate")) {
+            report("Rechiseled: Create", "rechiseledcreate");
+        }
         for (String namespace : CREATE_FAMILY) {
             if (net.neoforged.fml.ModList.get().isLoaded(namespace)) {
                 report(namespace, namespace);
@@ -95,6 +101,8 @@ public final class CoverageAudit {
                 || (net.neoforged.fml.ModList.get().isLoaded("chipped")
                         && dev.ncn.worlddegrade.compat.chipped.ChippedWeatherEffect.handles(state))
                 || (net.neoforged.fml.ModList.get().isLoaded("create")
-                        && dev.ncn.worlddegrade.compat.create.CreateDecayEffect.handles(state));
+                        && dev.ncn.worlddegrade.compat.create.CreateDecayEffect.handles(state))
+                || (net.neoforged.fml.ModList.get().isLoaded("rechiseled")
+                        && dev.ncn.worlddegrade.compat.rechiseled.RechiseledMaskedMaterialEffect.handles(state));
     }
 }

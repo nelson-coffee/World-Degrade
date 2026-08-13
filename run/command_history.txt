@@ -33,3 +33,5 @@
 /degrade
 /degrade playerblockset
 /degrade
+/sable info @e
+/degrade

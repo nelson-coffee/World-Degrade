@@ -2474,5 +2474,17 @@
     },
     "done": false
   },
+  "create:recipes/misc/crafting/appliances/linked_controller": {
+    "criteria": {
+      "has_item": "2026-08-13 20:11:18 +1000"
+    },
+    "done": true
+  },
+  "supplementaries:recipe/bomb": {
+    "criteria": {
+      "has_item_minecraft_tnt_1": "2026-08-13 20:42:20 +1000"
+    },
+    "done": true
+  },
   "DataVersion": 3955
 }

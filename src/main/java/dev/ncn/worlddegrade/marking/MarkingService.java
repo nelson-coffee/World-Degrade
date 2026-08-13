@@ -8,6 +8,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.network.PacketDistributor;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.UUID;
 
@@ -16,23 +17,39 @@ public final class MarkingService {
     private static final double DELETE_RAY_DISTANCE = 64.0;
 
     public static void handleBlockClick(ServerPlayer player, BlockPos clicked) {
-        WandSelections.Selection selection = WandSelections.get(player.getUUID());
+        WandSelections.Selection selection = currentSelection(player);
         if (selection != null && selection.second() != null && selection.contains(clicked)) {
             offerConfirm(player, selection);
             return;
         }
         WandSelections.Selection updated = selection == null
-                ? new WandSelections.Selection(clicked, null)
-                : new WandSelections.Selection(selection.first(), clicked);
+                ? new WandSelections.Selection(player.level().dimension(), clicked, null)
+                : new WandSelections.Selection(selection.dimension(), selection.first(), clicked);
         WandSelections.set(player.getUUID(), updated);
         syncSelection(player, updated);
     }
 
     public static void handleAirClick(ServerPlayer player) {
-        WandSelections.Selection selection = WandSelections.get(player.getUUID());
+        WandSelections.Selection selection = currentSelection(player);
         if (selection != null && selection.second() != null) {
             offerConfirm(player, selection);
         }
+    }
+
+    // A selection only means anything in the dimension it was made in; carrying one through a
+    // portal would otherwise mark a region in the new dimension at the old one's coordinates.
+    @Nullable
+    private static WandSelections.Selection currentSelection(ServerPlayer player) {
+        WandSelections.Selection selection = WandSelections.get(player.getUUID());
+        if (selection == null) {
+            return null;
+        }
+        if (!selection.dimension().equals(player.level().dimension())) {
+            WandSelections.clear(player.getUUID());
+            PacketDistributor.sendToPlayer(player, new MarkingPayloads.SelectionSync(null, null));
+            return null;
+        }
+        return selection;
     }
 
     public static void clearSelection(ServerPlayer player) {
@@ -57,7 +74,7 @@ public final class MarkingService {
         if (!player.hasPermissions(2)) {
             return;
         }
-        WandSelections.Selection selection = WandSelections.get(player.getUUID());
+        WandSelections.Selection selection = currentSelection(player);
         if (selection == null || selection.second() == null) {
             return;
         }

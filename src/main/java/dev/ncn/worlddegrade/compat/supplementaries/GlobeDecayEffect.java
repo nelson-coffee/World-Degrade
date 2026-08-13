@@ -18,6 +18,10 @@ public class GlobeDecayEffect implements DegradeEffect {
 
     @Override
     public void apply(DegradeContext ctx) {
+        if (globe == net.minecraft.world.level.block.Blocks.AIR
+                || sepiaGlobe == net.minecraft.world.level.block.Blocks.AIR) {
+            return;
+        }
         for (long packed : ctx.positions()) {
             BlockPos pos = BlockPos.of(packed);
             BlockState state = ctx.state(pos);

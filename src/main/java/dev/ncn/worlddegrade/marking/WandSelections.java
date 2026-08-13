@@ -8,7 +8,8 @@ import java.util.Map;
 import java.util.UUID;
 
 public final class WandSelections {
-    public record Selection(BlockPos first, @Nullable BlockPos second) {
+    public record Selection(net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level> dimension,
+                            BlockPos first, @Nullable BlockPos second) {
         public BlockPos min() {
             return second == null ? first : new BlockPos(
                     Math.min(first.getX(), second.getX()),
