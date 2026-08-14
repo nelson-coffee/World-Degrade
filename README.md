@@ -25,6 +25,7 @@ But thats just for vanilla Minecraft if you have any of the following mods insta
 - This mod also has support for degrading sable sub-levels so your create aeronautics ships can degrade just fine
 - In CC:Tweaked any files on computers or floppy disks have the chance to get corrupted
 - All of Chipped's blocks are supported
+- All of Rechiseled's blocks are supported
 - Literally the only thing for Supplementaries was making globes degrade into sepia globes
 
 Any blocks not recognised my the mod will just get destroyed at a percentage chance.
