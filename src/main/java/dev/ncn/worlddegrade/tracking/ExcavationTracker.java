@@ -1,7 +1,6 @@
 package dev.ncn.worlddegrade.tracking;
 
 import dev.ncn.worlddegrade.WorldDegrade;
-import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
@@ -77,7 +76,7 @@ public final class ExcavationTracker {
         if (!chunk.hasData(ModAttachments.EXCAVATED_CEILINGS)) {
             return new long[0];
         }
-        return ((LongOpenHashSet) chunk.getData(ModAttachments.EXCAVATED_CEILINGS)).toLongArray();
+        return chunk.getData(ModAttachments.EXCAVATED_CEILINGS).toLongArray();
     }
 
     public static boolean isExcavatedCeiling(LevelChunk chunk, BlockPos pos) {

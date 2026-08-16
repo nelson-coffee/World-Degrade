@@ -1,7 +1,6 @@
 package dev.ncn.worlddegrade.tracking;
 
 import dev.ncn.worlddegrade.WorldDegrade;
-import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.player.Player;
@@ -59,7 +58,7 @@ public final class PlacementTracker {
         if (!chunk.hasData(ModAttachments.TRACKED_BLOCKS)) {
             return new long[0];
         }
-        return ((LongOpenHashSet) chunk.getData(ModAttachments.TRACKED_BLOCKS)).toLongArray();
+        return chunk.getData(ModAttachments.TRACKED_BLOCKS).toLongArray();
     }
 
     private PlacementTracker() {

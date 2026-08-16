@@ -19,12 +19,27 @@
 *.tar.gz
 *.rar
 
+# The Gradle wrapper jar is required to build from a clean clone.
+!gradle/wrapper/gradle-wrapper.jar
+
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
 replay_pid*
 
+# Local IDE / tool metadata
+.vscode/
+.gradle/
+
+# Generated build output
+build/
+
+# Local runtime/dev environment - keep saves, ignore generated data
+run/*
+!run/saves/
+!run/saves/**
+!run-server/
+
 CLAUDE.md
 /.claude
-/run/saves
 /run/screenshots
 /run/schematics
