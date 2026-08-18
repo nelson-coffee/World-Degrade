@@ -4,11 +4,13 @@ import com.mojang.serialization.Codec;
 import dev.ncn.worlddegrade.WorldDegrade;
 import dev.ncn.worlddegrade.compat.CompatManager;
 import dev.ncn.worlddegrade.compat.RunWork;
+import dev.ncn.worlddegrade.degrade.DegradeArea;
 import dev.ncn.worlddegrade.degrade.DegradeContext;
 import dev.ncn.worlddegrade.degrade.DegradeChances;
 import dev.ncn.worlddegrade.degrade.effects.DegradeEffect;
 import dev.ncn.worlddegrade.undo.UndoManager;
 import dev.ncn.worlddegrade.undo.UndoSnapshot;
+import org.jetbrains.annotations.Nullable;
 import dev.ryanhcode.sable.api.sublevel.ServerSubLevelContainer;
 import dev.ryanhcode.sable.api.sublevel.SubLevelContainer;
 import dev.ryanhcode.sable.api.sublevel.ticket.SubLevelLoadingTicketType;
@@ -29,6 +31,7 @@ import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.chunk.LevelChunkSection;
 import net.minecraft.world.phys.AABB;
+import org.joml.Vector3dc;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -51,6 +54,7 @@ public class ShipDegrader implements RunWork, DegradeContext.RemovalSink {
     private final ServerLevel level;
     private final ServerSubLevelContainer container;
     private final DegradeChances chances;
+    @Nullable
     private final UUID operatorId;
     private final boolean wholeWorld;
     private final List<ServerSubLevel> ships = new ArrayList<>();
@@ -65,12 +69,13 @@ public class ShipDegrader implements RunWork, DegradeContext.RemovalSink {
     private boolean started;
     private int changedBlocks;
 
-    public ShipDegrader(ServerPlayer operator, DegradeChances chances, boolean wholeWorld, int radius) {
-        this.level = operator.serverLevel();
+    public ShipDegrader(ServerLevel level, DegradeArea area, DegradeChances chances,
+                        @Nullable UUID operator) {
+        this.level = level;
         this.container = SubLevelContainer.getContainer(this.level);
         this.chances = chances;
-        this.operatorId = operator.getUUID();
-        this.wholeWorld = wholeWorld;
+        this.operatorId = operator;
+        this.wholeWorld = area.isWholeDimension();
         this.runSeed = this.level.getRandom().nextLong();
         if (container == null) {
             return;
@@ -78,11 +83,11 @@ public class ShipDegrader implements RunWork, DegradeContext.RemovalSink {
         if (wholeWorld) {
             ships.addAll(container.getAllSubLevels());
         } else {
-            AABB area = new AABB(
-                    operator.getX() - radius, level.getMinBuildHeight(), operator.getZ() - radius,
-                    operator.getX() + radius, level.getMaxBuildHeight(), operator.getZ() + radius);
-            for (SubLevel subLevel : container.queryIntersecting(new BoundingBox3d(area))) {
-                if (subLevel instanceof ServerSubLevel serverSubLevel) {
+            // queryIntersecting only sees the coarse hull, which for a disjoint Chunks area covers
+            // every column between the claims. Re-filter on each ship's anchor column.
+            AABB scanBox = area.scanBounds(level.getMinBuildHeight(), level.getMaxBuildHeight());
+            for (SubLevel subLevel : container.queryIntersecting(new BoundingBox3d(scanBox))) {
+                if (subLevel instanceof ServerSubLevel serverSubLevel && isAnchoredInArea(subLevel, area)) {
                     ships.add(serverSubLevel);
                 }
             }
@@ -92,6 +97,16 @@ public class ShipDegrader implements RunWork, DegradeContext.RemovalSink {
 
     public boolean hasShips() {
         return !ships.isEmpty();
+    }
+
+    @Override
+    public int targetCount() {
+        return ships.size();
+    }
+
+    private static boolean isAnchoredInArea(SubLevel subLevel, DegradeArea area) {
+        Vector3dc anchor = subLevel.logicalPose().position();
+        return area.containsColumn(anchor.x(), anchor.z());
     }
 
     @Override
@@ -174,9 +189,11 @@ public class ShipDegrader implements RunWork, DegradeContext.RemovalSink {
             UndoManager.current().compatSection("sable")
                     .putString("pendingDimension", level.dimension().location().toString());
         }
-        ServerPlayer operator = level.getServer().getPlayerList().getPlayer(operatorId);
-        if (operator != null && !ships.isEmpty()) {
-            operator.sendSystemMessage(Component.translatable("chat.worlddegrade.ships", ships.size()));
+        if (operatorId != null && !ships.isEmpty()) {
+            ServerPlayer operator = level.getServer().getPlayerList().getPlayer(operatorId);
+            if (operator != null) {
+                operator.sendSystemMessage(Component.translatable("chat.worlddegrade.ships", ships.size()));
+            }
         }
     }
 

@@ -2,6 +2,8 @@ package dev.ncn.worlddegrade.compat;
 
 import com.mojang.logging.LogUtils;
 import dev.ncn.worlddegrade.config.WorldDegradeConfig;
+import dev.ncn.worlddegrade.degrade.DegradeArea;
+import dev.ncn.worlddegrade.degrade.DegradeChances;
 import dev.ncn.worlddegrade.degrade.effects.BrickWeatherEffect;
 import dev.ncn.worlddegrade.degrade.effects.ContainerLootEffect;
 import dev.ncn.worlddegrade.degrade.effects.DegradeEffect;
@@ -18,11 +20,14 @@ import dev.ncn.worlddegrade.degrade.effects.VanillaDecayEffect;
 import dev.ncn.worlddegrade.degrade.effects.WoodRotEffect;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
 import net.neoforged.fml.ModList;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.function.Supplier;
 
 public final class CompatManager {
@@ -114,13 +119,12 @@ public final class CompatManager {
         return effects;
     }
 
-    public static List<RunWork> collectRunWork(net.minecraft.server.level.ServerPlayer operator,
-                                               dev.ncn.worlddegrade.degrade.DegradeChances chances,
-                                               boolean wholeWorld, int radius) {
+    public static List<RunWork> collectRunWork(ServerLevel level, DegradeArea area,
+                                               DegradeChances chances, @Nullable UUID operator) {
         List<RunWork> work = new ArrayList<>();
         for (ModCompat compat : ACTIVE) {
             try {
-                work.addAll(compat.createRunWork(operator, chances, wholeWorld, radius));
+                work.addAll(compat.createRunWork(level, area, chances, operator));
             } catch (Throwable t) {
                 LOGGER.error("World Degrade: {} compat failed to contribute run work", compat.modId(), t);
             }

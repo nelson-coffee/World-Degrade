@@ -12,6 +12,8 @@ import java.util.ArrayList;
 import dev.ncn.worlddegrade.tracking.TrackedChunkIndex;
 import dev.ncn.worlddegrade.undo.UndoManager;
 import it.unimi.dsi.fastutil.longs.LongArrayFIFOQueue;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import com.mojang.logging.LogUtils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
@@ -24,39 +26,51 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
+import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
 
 import java.util.List;
 import java.util.UUID;
 
 @EventBusSubscriber(modid = WorldDegrade.MOD_ID)
 public class DegradeJob {
+    private static final Logger LOGGER = LogUtils.getLogger();
     private static final int PROGRESS_INTERVAL = 200;
 
     private static DegradeJob active;
 
     private final ServerLevel level;
+    private final DegradeArea area;
     private final DegradeChances chances;
     private final LongArrayFIFOQueue chunkQueue;
     private final List<RunWork> extraWork;
     private final List<DegradeEffect> effects;
     private final int totalChunks;
+    private final int totalCompatTargets;
     private final int chunksPerTick;
     private final boolean placementTrackingEnabled;
     private final boolean excavationTrackingEnabled;
+    @Nullable
     private final UUID operator;
     private final long runSeed;
     private int processedChunks;
     private int changedBlocks;
     private int excavatedCeilings;
 
-    private DegradeJob(ServerLevel level, DegradeChances chances, LongArrayFIFOQueue chunkQueue,
-                       List<RunWork> extraWork, UUID operator) {
+    private DegradeJob(ServerLevel level, DegradeArea area, DegradeChances chances,
+                       LongArrayFIFOQueue chunkQueue, List<RunWork> extraWork, @Nullable UUID operator) {
         this.level = level;
+        this.area = area;
         this.chances = chances;
         this.chunkQueue = chunkQueue;
         this.extraWork = new ArrayList<>(extraWork);
         this.effects = CompatManager.createEffects();
         this.totalChunks = chunkQueue.size();
+        int compatTargets = 0;
+        for (RunWork work : extraWork) {
+            compatTargets += work.targetCount();
+        }
+        this.totalCompatTargets = compatTargets;
         this.chunksPerTick = WorldDegradeConfig.chunksPerTick();
         this.placementTrackingEnabled = WorldDegradeConfig.placementTrackingEnabled();
         this.excavationTrackingEnabled = WorldDegradeConfig.excavationTrackingEnabled();
@@ -68,41 +82,58 @@ public class DegradeJob {
         return active != null;
     }
 
-    public static void start(ServerPlayer player, DegradeChances chances, boolean wholeWorld, int radius) {
-        ServerLevel level = player.serverLevel();
-        it.unimi.dsi.fastutil.longs.LongOpenHashSet chunkSet = new it.unimi.dsi.fastutil.longs.LongOpenHashSet();
+    public static boolean isRunning(ServerLevel level) {
+        return active != null && active.level == level;
+    }
+
+    public int totalChunks() {
+        return totalChunks;
+    }
+
+    /** Contraptions, trains and ships this run will process on top of {@link #totalChunks()}. */
+    public int totalCompatTargets() {
+        return totalCompatTargets;
+    }
+
+    /**
+     * Builds and installs a degradation run over the given area. Callers are responsible for the
+     * busy/dimension/empty checks (see {@link DegradeService}); this only gathers the tracked
+     * chunks the area touches and starts the job.
+     *
+     * @return the started job, or {@code null} when the area contains no tracked work.
+     */
+    @Nullable
+    static DegradeJob begin(ServerLevel level, DegradeArea area, DegradeChances chances,
+                            boolean saveUndo, @Nullable UUID operator) {
+        LongOpenHashSet chunkSet = new LongOpenHashSet();
         for (long packedChunk : TrackedChunkIndex.get(level).allChunks()) {
-            if (wholeWorld || chunkIntersectsRadius(packedChunk, player, radius)) {
+            if (area.containsChunk(packedChunk)) {
                 chunkSet.add(packedChunk);
             }
         }
         for (long packedChunk : MarkedRegions.get(level).regionChunks()) {
-            if (wholeWorld || chunkIntersectsRadius(packedChunk, player, radius)) {
+            if (area.containsChunk(packedChunk)) {
                 chunkSet.add(packedChunk);
             }
         }
         LongArrayFIFOQueue queue = new LongArrayFIFOQueue();
         chunkSet.forEach(queue::enqueue);
-        List<RunWork> extraWork = CompatManager.collectRunWork(player, chances, wholeWorld, radius);
+        List<RunWork> extraWork = CompatManager.collectRunWork(level, area, chances, operator);
         if (queue.isEmpty() && extraWork.isEmpty()) {
-            player.sendSystemMessage(Component.translatable("chat.worlddegrade.nothing"));
-            return;
+            return null;
         }
-        UndoManager.beginRun(level);
-        active = new DegradeJob(level, chances, queue, extraWork, player.getUUID());
-        player.sendSystemMessage(Component.translatable("chat.worlddegrade.start",
-                queue.size(), chances.levelId(),
-                Component.translatable("gui.worlddegrade.tier." + chances.levelId())));
+        UndoManager.beginRun(level.dimension(), saveUndo);
+        active = new DegradeJob(level, area, chances, queue, extraWork, operator);
+        LOGGER.info("World Degrade: starting run over {} chunk(s) at level {} in {} (undo={})",
+                queue.size(), chances.levelId(), level.dimension().location(), saveUndo);
+        active.sendStart(level.getServer());
+        return active;
     }
 
-    private static boolean chunkIntersectsRadius(long packedChunk, ServerPlayer player, int radius) {
-        int minX = ChunkPos.getX(packedChunk) << 4;
-        int minZ = ChunkPos.getZ(packedChunk) << 4;
-        double nearestX = Math.max(minX, Math.min(player.getX(), minX + 15));
-        double nearestZ = Math.max(minZ, Math.min(player.getZ(), minZ + 15));
-        double dx = player.getX() - nearestX;
-        double dz = player.getZ() - nearestZ;
-        return dx * dx + dz * dz <= (double) radius * radius;
+    private void sendStart(MinecraftServer server) {
+        sendToOperator(server, Component.translatable("chat.worlddegrade.start",
+                totalChunks, chances.levelId(),
+                Component.translatable("gui.worlddegrade.tier." + chances.levelId())));
     }
 
     @SubscribeEvent
@@ -171,6 +202,7 @@ public class DegradeJob {
                 : new it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap();
         merged.addAll(dugCeilings.keySet());
         excavatedCeilings += dugCeilings.size();
+        merged.removeIf((long pos) -> !area.containsBlock(pos));
         if (merged.isEmpty()) {
             return;
         }
@@ -201,7 +233,7 @@ public class DegradeJob {
             BlockPos origin = BlockPos.of(packed);
             for (int consumed = 0; consumed < LIFETIME_CAP; consumed++) {
                 cursor.set(origin.getX(), origin.getY() + consumed, origin.getZ());
-                if (!level.getBlockState(cursor).isSolid()) {
+                if (!level.getBlockState(cursor).blocksMotion()) {
                     continue;
                 }
                 int allowance = Math.min(perRun, LIFETIME_CAP - consumed);
@@ -216,6 +248,9 @@ public class DegradeJob {
     }
 
     private void sendToOperator(MinecraftServer server, Component message) {
+        if (operator == null) {
+            return;
+        }
         ServerPlayer player = server.getPlayerList().getPlayer(operator);
         if (player != null) {
             player.sendSystemMessage(message);

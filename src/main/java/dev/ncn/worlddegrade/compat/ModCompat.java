@@ -1,15 +1,17 @@
 package dev.ncn.worlddegrade.compat;
 
+import dev.ncn.worlddegrade.degrade.DegradeArea;
 import dev.ncn.worlddegrade.degrade.DegradeChances;
 import dev.ncn.worlddegrade.degrade.effects.DegradeEffect;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.Block;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
+import java.util.UUID;
 import java.util.function.BiConsumer;
 
 public interface ModCompat {
@@ -29,7 +31,8 @@ public interface ModCompat {
         return List.of();
     }
 
-    default List<RunWork> createRunWork(ServerPlayer operator, DegradeChances chances, boolean wholeWorld, int radius) {
+    default List<RunWork> createRunWork(ServerLevel level, DegradeArea area, DegradeChances chances,
+                                        @Nullable UUID operator) {
         return List.of();
     }
 

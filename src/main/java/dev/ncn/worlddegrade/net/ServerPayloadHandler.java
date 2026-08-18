@@ -1,10 +1,12 @@
 package dev.ncn.worlddegrade.net;
 
-import dev.ncn.worlddegrade.config.WorldDegradeConfig;
+import dev.ncn.worlddegrade.degrade.DegradeArea;
 import dev.ncn.worlddegrade.degrade.DegradeChances;
-import dev.ncn.worlddegrade.degrade.DegradeJob;
 import dev.ncn.worlddegrade.degrade.DegradeLevel;
-import dev.ncn.worlddegrade.undo.UndoManager;
+import dev.ncn.worlddegrade.degrade.DegradeResult;
+import dev.ncn.worlddegrade.degrade.DegradeService;
+import dev.ncn.worlddegrade.item.ModItems;
+import dev.ncn.worlddegrade.marking.MarkingService;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
@@ -22,35 +24,34 @@ public final class ServerPayloadHandler {
             player.sendSystemMessage(Component.translatable("chat.worlddegrade.no_permission"));
             return;
         }
-        if (DegradeJob.isBusy() || UndoManager.isRestoring()) {
-            player.sendSystemMessage(Component.translatable("chat.worlddegrade.busy"));
-            return;
-        }
-        if (WorldDegradeConfig.isDimensionDisabled(player.serverLevel())) {
-            player.sendSystemMessage(Component.translatable("chat.worlddegrade.dimension_disabled"));
-            return;
-        }
         DegradeLevel level = DegradeLevel.byId(payload.level());
         DegradeChances chances = payload.customChances() != null
                 && payload.customChances().length == DegradeChances.VALUE_COUNT
                 ? DegradeChances.custom(level.id(), payload.corruptComputers(), payload.customChances())
                 : DegradeChances.of(level, payload.corruptComputers());
         int radius = Mth.clamp(payload.radius(), MIN_RADIUS, MAX_RADIUS);
-        DegradeJob.start(player, chances, payload.wholeWorld(), radius);
+        DegradeArea area = payload.wholeWorld()
+                ? new DegradeArea.WholeDimension()
+                : new DegradeArea.Radius(player.getX(), player.getZ(), radius);
+        DegradeResult result = DegradeService.start(
+                player.serverLevel(), area, chances, true, player.getUUID());
+        if (!result.started()) {
+            player.sendSystemMessage(Component.translatable(result.messageKey()));
+        }
     }
 
     public static void handleConfirmMark(MarkingPayloads.ConfirmMark payload, IPayloadContext context) {
         if (context.player() instanceof ServerPlayer player) {
-            dev.ncn.worlddegrade.marking.MarkingService.confirm(player);
+            MarkingService.confirm(player);
         }
     }
 
     public static void handleWandAirAttack(MarkingPayloads.WandAirAttack payload, IPayloadContext context) {
         if (context.player() instanceof ServerPlayer player
                 && player.isShiftKeyDown()
-                && (player.getMainHandItem().is(dev.ncn.worlddegrade.item.ModItems.MARKER_WAND.get())
-                        || player.getOffhandItem().is(dev.ncn.worlddegrade.item.ModItems.MARKER_WAND.get()))) {
-            dev.ncn.worlddegrade.marking.MarkingService.deleteAimedRegion(player);
+                && (player.getMainHandItem().is(ModItems.MARKER_WAND.get())
+                        || player.getOffhandItem().is(ModItems.MARKER_WAND.get()))) {
+            MarkingService.deleteAimedRegion(player);
         }
     }
 

@@ -3,6 +3,7 @@ package dev.ncn.worlddegrade.compat.sable;
 import dev.ncn.worlddegrade.compat.CompatManager;
 import dev.ncn.worlddegrade.compat.ModCompat;
 import dev.ncn.worlddegrade.compat.RunWork;
+import dev.ncn.worlddegrade.degrade.DegradeArea;
 import dev.ncn.worlddegrade.degrade.DegradeContext;
 import dev.ncn.worlddegrade.degrade.DegradeChances;
 import dev.ncn.worlddegrade.degrade.DegradeLevel;
@@ -21,13 +22,14 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.ChunkPos;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayDeque;
 import java.util.List;
+import java.util.UUID;
 
 public class SableCompat implements ModCompat {
     private static final int ON_LOAD_CHUNKS_PER_TICK = 2;
@@ -89,9 +91,10 @@ public class SableCompat implements ModCompat {
     }
 
     @Override
-    public List<RunWork> createRunWork(ServerPlayer operator, DegradeChances chances, boolean wholeWorld, int radius) {
-        ShipDegrader degrader = new ShipDegrader(operator, chances, wholeWorld, radius);
-        return degrader.hasShips() || wholeWorld ? List.of(degrader) : List.of();
+    public List<RunWork> createRunWork(ServerLevel level, DegradeArea area,
+                                       DegradeChances chances, @Nullable UUID operator) {
+        ShipDegrader degrader = new ShipDegrader(level, area, chances, operator);
+        return degrader.hasShips() || area.isWholeDimension() ? List.of(degrader) : List.of();
     }
 
     @Override
@@ -171,7 +174,7 @@ public class SableCompat implements ModCompat {
                 }
             }
             work.effects = CompatManager.createShipEffects();
-            work.discardedUndo = new UndoSnapshot(work.level.dimension());
+            work.discardedUndo = UndoSnapshot.discarding(work.level.dimension());
             work.removalExecutor = new DegradeContext(work.level, work.chances,
                     work.discardedUndo, new long[0], work.seed);
         }

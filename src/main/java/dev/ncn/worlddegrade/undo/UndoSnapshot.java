@@ -26,9 +26,28 @@ public class UndoSnapshot {
     private final ResourceKey<Level> dimension;
     private final Long2ObjectMap<BlockRecord> records = new Long2ObjectOpenHashMap<>();
     private final CompoundTag compatData = new CompoundTag();
+    private final boolean recording;
 
     public UndoSnapshot(ResourceKey<Level> dimension) {
+        this(dimension, true);
+    }
+
+    private UndoSnapshot(ResourceKey<Level> dimension, boolean recording) {
         this.dimension = dimension;
+        this.recording = recording;
+    }
+
+    /**
+     * A snapshot that swallows every {@link #record} call. Used by automated runs that opt out
+     * of undo, and by compat paths that never intend to persist an undo (lazily-loaded
+     * contraption/ship degradation). It never grows and is never written to disk.
+     */
+    public static UndoSnapshot discarding(ResourceKey<Level> dimension) {
+        return new UndoSnapshot(dimension, false);
+    }
+
+    public boolean isRecording() {
+        return recording;
     }
 
     public CompoundTag compatSection(String key) {
@@ -43,6 +62,9 @@ public class UndoSnapshot {
     }
 
     public void record(ServerLevel level, BlockPos pos) {
+        if (!recording) {
+            return;
+        }
         long key = pos.asLong();
         if (records.containsKey(key)) {
             return;
