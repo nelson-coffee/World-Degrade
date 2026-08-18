@@ -1,5 +1,7 @@
 # World Degrade
- 
+
+[Modrinth](https://modrinth.com/mod/world-degrade) | [CurseForge](https://www.curseforge.com/minecraft/mc-mods/world-degrade)
+
 ### A mod for turning player made structures into ruins
 ***
 
