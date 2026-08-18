@@ -16,6 +16,13 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 
 public class LightSnuffEffect implements DegradeEffect {
+    private final boolean enabled;
+    private final boolean burntVariants;
+
+    public LightSnuffEffect(boolean enabled, boolean burntVariants) {
+        this.enabled = enabled;
+        this.burntVariants = burntVariants;
+    }
 
     @Override
     public void apply(DegradeContext ctx) {
@@ -28,6 +35,9 @@ public class LightSnuffEffect implements DegradeEffect {
                     || block instanceof BurntTorchBlock || block instanceof BurntWallTorchBlock
                     || block instanceof BurntLanternBlock) {
                 ctx.claim(pos);
+            }
+            if (!enabled) {
+                continue;
             }
             if (block instanceof CampfireBlock) {
                 if (state.hasProperty(BlockStateProperties.LIT) && state.getValue(BlockStateProperties.LIT)
@@ -42,29 +52,41 @@ public class LightSnuffEffect implements DegradeEffect {
             }
             if (block instanceof WallTorchBlock) {
                 if (ctx.roll(ctx.chances.campfireExtinguishChance())) {
-                    Block burnt = isSoulVariant(block)
-                            ? ModBlocks.BURNT_SOUL_WALL_TORCH.get()
-                            : ModBlocks.BURNT_WALL_TORCH.get();
-                    ctx.replaceBlock(pos, burnt.defaultBlockState().setValue(
-                            BlockStateProperties.HORIZONTAL_FACING,
-                            state.getValue(BlockStateProperties.HORIZONTAL_FACING)));
+                    if (burntVariants) {
+                        Block burnt = isSoulVariant(block)
+                                ? ModBlocks.BURNT_SOUL_WALL_TORCH.get()
+                                : ModBlocks.BURNT_WALL_TORCH.get();
+                        ctx.replaceBlock(pos, burnt.defaultBlockState().setValue(
+                                BlockStateProperties.HORIZONTAL_FACING,
+                                state.getValue(BlockStateProperties.HORIZONTAL_FACING)));
+                    } else {
+                        ctx.removeBlock(pos);
+                    }
                 }
                 continue;
             }
             if (block instanceof TorchBlock) {
                 if (ctx.roll(ctx.chances.campfireExtinguishChance())) {
-                    Block burnt = isSoulVariant(block)
-                            ? ModBlocks.BURNT_SOUL_TORCH.get()
-                            : ModBlocks.BURNT_TORCH.get();
-                    ctx.replaceBlock(pos, burnt.defaultBlockState());
+                    if (burntVariants) {
+                        Block burnt = isSoulVariant(block)
+                                ? ModBlocks.BURNT_SOUL_TORCH.get()
+                                : ModBlocks.BURNT_TORCH.get();
+                        ctx.replaceBlock(pos, burnt.defaultBlockState());
+                    } else {
+                        ctx.removeBlock(pos);
+                    }
                 }
                 continue;
             }
             if (block instanceof LanternBlock && ctx.roll(ctx.chances.campfireExtinguishChance())) {
-                Block burnt = isSoulVariant(block)
-                        ? ModBlocks.BURNT_SOUL_LANTERN.get()
-                        : ModBlocks.BURNT_LANTERN.get();
-                ctx.replaceBlock(pos, burnt.withPropertiesOf(state));
+                if (burntVariants) {
+                    Block burnt = isSoulVariant(block)
+                            ? ModBlocks.BURNT_SOUL_LANTERN.get()
+                            : ModBlocks.BURNT_LANTERN.get();
+                    ctx.replaceBlock(pos, burnt.withPropertiesOf(state));
+                } else {
+                    ctx.removeBlock(pos);
+                }
             }
         }
     }

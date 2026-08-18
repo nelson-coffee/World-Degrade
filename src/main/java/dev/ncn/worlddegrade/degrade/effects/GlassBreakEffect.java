@@ -6,6 +6,11 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.common.Tags;
 
 public class GlassBreakEffect implements DegradeEffect {
+    private final boolean enabled;
+
+    public GlassBreakEffect(boolean enabled) {
+        this.enabled = enabled;
+    }
 
     @Override
     public void apply(DegradeContext ctx) {
@@ -16,6 +21,9 @@ public class GlassBreakEffect implements DegradeEffect {
                 continue;
             }
             ctx.claim(pos);
+            if (!enabled) {
+                continue;
+            }
             if (!BrickWeatherEffect.isFullyWorn(ctx, pos, state)) {
                 continue;
             }

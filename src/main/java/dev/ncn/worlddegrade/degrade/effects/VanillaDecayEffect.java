@@ -14,6 +14,11 @@ import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 
 public class VanillaDecayEffect implements DegradeEffect {
     private static final float BREAK_SCALE = 0.33f;
+    private final boolean enabled;
+
+    public VanillaDecayEffect(boolean enabled) {
+        this.enabled = enabled;
+    }
 
     @Override
     public void apply(DegradeContext ctx) {
@@ -28,6 +33,9 @@ public class VanillaDecayEffect implements DegradeEffect {
                 continue;
             }
             ctx.claim(pos);
+            if (!enabled) {
+                continue;
+            }
             if (DecayExemptions.isExempt(state)) {
                 continue;
             }

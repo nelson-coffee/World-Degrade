@@ -9,6 +9,11 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 
 public class DoorBreakEffect implements DegradeEffect {
+    private final boolean enabled;
+
+    public DoorBreakEffect(boolean enabled) {
+        this.enabled = enabled;
+    }
 
     @Override
     public void apply(DegradeContext ctx) {
@@ -17,7 +22,7 @@ public class DoorBreakEffect implements DegradeEffect {
             BlockState state = ctx.state(pos);
             if (state.getBlock() instanceof DoorBlock) {
                 ctx.claim(pos);
-                if (state.getValue(DoorBlock.HALF) != DoubleBlockHalf.LOWER) {
+                if (!enabled || state.getValue(DoorBlock.HALF) != DoubleBlockHalf.LOWER) {
                     continue;
                 }
                 if (ctx.roll(ctx.chances.doorBreakChance())) {
@@ -29,7 +34,7 @@ public class DoorBreakEffect implements DegradeEffect {
                 }
             } else if (state.getBlock() instanceof TrapDoorBlock || state.getBlock() instanceof FenceGateBlock) {
                 ctx.claim(pos);
-                if (ctx.roll(ctx.chances.doorBreakChance())) {
+                if (enabled && ctx.roll(ctx.chances.doorBreakChance())) {
                     ctx.removeBlock(pos);
                 }
             }

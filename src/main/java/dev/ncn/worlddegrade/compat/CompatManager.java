@@ -1,6 +1,7 @@
 package dev.ncn.worlddegrade.compat;
 
 import com.mojang.logging.LogUtils;
+import dev.ncn.worlddegrade.config.WorldDegradeConfig;
 import dev.ncn.worlddegrade.degrade.effects.BrickWeatherEffect;
 import dev.ncn.worlddegrade.degrade.effects.ContainerLootEffect;
 import dev.ncn.worlddegrade.degrade.effects.DegradeEffect;
@@ -8,6 +9,7 @@ import dev.ncn.worlddegrade.degrade.effects.DoorBreakEffect;
 import dev.ncn.worlddegrade.degrade.effects.GlassBreakEffect;
 import dev.ncn.worlddegrade.degrade.effects.LightSnuffEffect;
 import dev.ncn.worlddegrade.degrade.effects.OvergrowthEffect;
+import dev.ncn.worlddegrade.degrade.effects.PortalBreakEffect;
 import dev.ncn.worlddegrade.degrade.effects.StructuralCollapseEffect;
 import dev.ncn.worlddegrade.degrade.effects.LeafGrowthEffect;
 import dev.ncn.worlddegrade.degrade.effects.SurvivalSweepEffect;
@@ -61,24 +63,40 @@ public final class CompatManager {
 
     public static List<DegradeEffect> createEffects() {
         List<DegradeEffect> effects = new ArrayList<>();
-        effects.add(new GlassBreakEffect());
-        effects.add(new BrickWeatherEffect());
-        effects.add(new WoodRotEffect());
-        effects.add(new VanillaDecayEffect());
+        // Claim-based effects stay in the list even when disabled: their apply() still marks
+        // matching blocks as handled (ctx.claim) before skipping mutation, so a disabled effect
+        // leaves its blocks alone instead of handing them to UnknownBlockBreakEffect for deletion.
+        effects.add(new GlassBreakEffect(WorldDegradeConfig.glassBreakEnabled()));
+        effects.add(new BrickWeatherEffect(WorldDegradeConfig.brickWeatherEnabled()));
+        effects.add(new WoodRotEffect(WorldDegradeConfig.woodRotEnabled()));
+        effects.add(new VanillaDecayEffect(WorldDegradeConfig.vanillaDecayEnabled()));
         for (ModCompat compat : ACTIVE) {
             effects.addAll(compat.createWeatheringEffects());
         }
-        effects.add(new StructuralCollapseEffect());
-        effects.add(new DoorBreakEffect());
-        effects.add(new ContainerLootEffect());
-        effects.add(new LightSnuffEffect());
-        effects.add(new dev.ncn.worlddegrade.degrade.effects.PortalBreakEffect());
-        effects.add(new OvergrowthEffect());
-        effects.add(new LeafGrowthEffect());
+        // Effects below neither claim blocks nor risk unknown-break deletion when absent, so
+        // disabling them simply omits them from the run.
+        if (WorldDegradeConfig.structuralCollapseEnabled()) {
+            effects.add(new StructuralCollapseEffect());
+        }
+        effects.add(new DoorBreakEffect(WorldDegradeConfig.doorBreakEnabled()));
+        effects.add(new ContainerLootEffect(WorldDegradeConfig.containerLootEnabled()));
+        effects.add(new LightSnuffEffect(WorldDegradeConfig.lightSnuffEnabled(),
+                WorldDegradeConfig.burntBlockVariantsEnabled()));
+        if (WorldDegradeConfig.portalBreakEnabled()) {
+            effects.add(new PortalBreakEffect());
+        }
+        if (WorldDegradeConfig.overgrowthEnabled()) {
+            effects.add(new OvergrowthEffect());
+        }
+        if (WorldDegradeConfig.leafGrowthEnabled()) {
+            effects.add(new LeafGrowthEffect());
+        }
         for (ModCompat compat : ACTIVE) {
             effects.addAll(compat.createEffects());
         }
-        effects.add(new UnknownBlockBreakEffect());
+        if (WorldDegradeConfig.unknownBreakEnabled()) {
+            effects.add(new UnknownBlockBreakEffect());
+        }
         effects.add(new SurvivalSweepEffect());
         return effects;
     }

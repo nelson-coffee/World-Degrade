@@ -1,6 +1,7 @@
 package dev.ncn.worlddegrade.tracking;
 
 import dev.ncn.worlddegrade.WorldDegrade;
+import dev.ncn.worlddegrade.config.WorldDegradeConfig;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.player.Player;
@@ -18,18 +19,24 @@ public final class PlacementTracker {
         if (event instanceof BlockEvent.EntityMultiPlaceEvent) {
             return;
         }
-        if (event.getEntity() instanceof Player && event.getLevel() instanceof ServerLevel level) {
+        if (event.getEntity() instanceof Player && event.getLevel() instanceof ServerLevel level
+                && trackingEnabled(level)) {
             track(level, event.getPos());
         }
     }
 
     @SubscribeEvent
     public static void onMultiPlace(BlockEvent.EntityMultiPlaceEvent event) {
-        if (event.getEntity() instanceof Player && event.getLevel() instanceof ServerLevel level) {
+        if (event.getEntity() instanceof Player && event.getLevel() instanceof ServerLevel level
+                && trackingEnabled(level)) {
             for (BlockSnapshot snapshot : event.getReplacedBlockSnapshots()) {
                 track(level, snapshot.getPos());
             }
         }
+    }
+
+    private static boolean trackingEnabled(ServerLevel level) {
+        return WorldDegradeConfig.placementTrackingEnabled() && WorldDegradeConfig.isDimensionTracked(level);
     }
 
     @SubscribeEvent

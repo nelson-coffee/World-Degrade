@@ -1,5 +1,6 @@
 package dev.ncn.worlddegrade.client;
 
+import dev.ncn.worlddegrade.config.WorldDegradeConfig;
 import dev.ncn.worlddegrade.net.DegradeRequestPayload;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractSliderButton;
@@ -16,7 +17,7 @@ public class DegradeScreen extends Screen {
     private static final int WIDGET_HEIGHT = 20;
     private static final int DEFAULT_RADIUS = 64;
 
-    private int selectedLevel = 3;
+    private int selectedLevel = WorldDegradeConfig.defaultLevel();
     private boolean wholeWorld = false;
     private boolean corruptComputers = true;
     private EditBox radiusBox;

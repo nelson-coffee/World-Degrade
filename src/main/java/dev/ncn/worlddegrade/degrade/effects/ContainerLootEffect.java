@@ -14,6 +14,11 @@ import net.neoforged.neoforge.items.IItemHandlerModifiable;
 
 public class ContainerLootEffect implements DegradeEffect {
     private final LongOpenHashSet lootedPositions = new LongOpenHashSet();
+    private final boolean enabled;
+
+    public ContainerLootEffect(boolean enabled) {
+        this.enabled = enabled;
+    }
 
     @Override
     public void apply(DegradeContext ctx) {
@@ -27,6 +32,9 @@ public class ContainerLootEffect implements DegradeEffect {
                 continue;
             }
             ctx.claim(pos);
+            if (!enabled) {
+                continue;
+            }
             if (!claimInventory(ctx, pos) || !ctx.claimLoot(pos)) {
                 continue;
             }

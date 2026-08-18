@@ -15,6 +15,12 @@ import java.util.Map;
 import java.util.Set;
 
 public class BrickWeatherEffect implements DegradeEffect {
+    private final boolean enabled;
+
+    public BrickWeatherEffect(boolean enabled) {
+        this.enabled = enabled;
+    }
+
     private static final Map<Block, Block> WEAR = new HashMap<>();
 
     private static final Set<Block> KNOWN = new HashSet<>();
@@ -195,6 +201,9 @@ public class BrickWeatherEffect implements DegradeEffect {
             }
             if (isKnownMaterial(original)) {
                 ctx.claim(pos);
+            }
+            if (!enabled) {
+                continue;
             }
             BlockState current = original;
             for (int step = 0, allowance = budget; step < allowance; step++) {
