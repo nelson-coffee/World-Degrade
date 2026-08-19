@@ -20,6 +20,7 @@ public class SurvivalSweepEffect implements DegradeEffect {
 
         for (long packed : positions) {
             BlockPos pos = BlockPos.of(packed);
+            ctx.normalizeOrphanedChest(pos);
             BlockState state = ctx.state(pos);
             if (state.isAir() || state.canSurvive(ctx.level, pos)) {
                 continue;

@@ -36,6 +36,7 @@ public final class ServerConfig {
     final ModConfigSpec.BooleanValue enableLeafGrowth;
     final ModConfigSpec.BooleanValue enableVanillaDecay;
     final ModConfigSpec.BooleanValue enableUnknownBreak;
+    final ModConfigSpec.BooleanValue protectFilledContainers;
 
     // Performance
     final ModConfigSpec.IntValue chunksPerTick;
@@ -88,6 +89,7 @@ public final class ServerConfig {
         enableLeafGrowth = builder.comment("Grow leaves and foliage over structures.").define("enableLeafGrowth", true);
         enableVanillaDecay = builder.comment("Apply vanilla block wear transitions.").define("enableVanillaDecay", true);
         enableUnknownBreak = builder.comment("Break otherwise-unhandled blocks that have no specific effect.").define("enableUnknownBreak", true);
+        protectFilledContainers = builder.comment("Only destroy containers once they are empty.").define("protectFilledContainers", true);
 
         builder.pop();
 
