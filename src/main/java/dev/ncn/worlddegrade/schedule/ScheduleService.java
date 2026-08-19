@@ -1,13 +1,18 @@
 package dev.ncn.worlddegrade.schedule;
 
+import com.mojang.logging.LogUtils;
 import dev.ncn.worlddegrade.config.WorldDegradeConfig;
+import dev.ncn.worlddegrade.degrade.DegradeJob;
+import dev.ncn.worlddegrade.undo.UndoManager;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
+import org.slf4j.Logger;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Public entry point for the degradation schedule (#5), the sibling of
@@ -29,7 +34,82 @@ public final class ScheduleService {
      */
     public static final int MAX_CHUNKS = 10_000;
 
+    private static final Logger LOGGER = LogUtils.getLogger();
+    // Copy-on-write because listeners register once at setup and are only iterated on the scheduler
+    // tick; registration is rare, iteration is hot.
+    private static final List<SchedulePassListener> PASS_LISTENERS = new CopyOnWriteArrayList<>();
+
+    // Set by the OPAC compat (#6) when the mod is present, so the debug command can drive the real
+    // expiration pipeline (batcher -> OPAC-sourced schedule -> unclaim) without OPAC types leaking into
+    // core. Null when OPAC is not installed.
+    private static volatile OpacExpirationSimulator opacSimulator;
+
     private ScheduleService() {
+    }
+
+    /**
+     * Hook the OPAC compat registers so operators can trigger the claim-expiration path on demand.
+     * OPAC only expires claims of players inactive for hours, which is impractical to reproduce in a
+     * dev/single-player session, so the {@code /degrade opac simulate} command routes through this to
+     * feed chunks into the exact same batcher the real OPAC callback uses.
+     */
+    @FunctionalInterface
+    public interface OpacExpirationSimulator {
+        /**
+         * Queues the chunks as if their OPAC claim had just expired; returns how many were queued. When
+         * {@code expireClaims} is true the chunks are first set to OPAC's expired-claim owner (exactly
+         * as a real expiration does), so the post-pass unclaim genuinely removes them; otherwise the
+         * claims are left untouched and only the degradation runs.
+         */
+        int simulate(ServerLevel level, LongOpenHashSet chunks, boolean expireClaims);
+    }
+
+    public static void setOpacSimulator(OpacExpirationSimulator simulator) {
+        opacSimulator = simulator;
+    }
+
+    /** Whether the OPAC integration is present and can simulate an expiration. */
+    public static boolean opacSimulationAvailable() {
+        return opacSimulator != null;
+    }
+
+    /**
+     * Feeds {@code chunks} into the OPAC expiration pipeline as if their claim had just expired. Returns
+     * the number of chunks queued, or {@code -1} when the OPAC integration is not installed.
+     */
+    public static int simulateOpacExpiration(ServerLevel level, LongOpenHashSet chunks, boolean expireClaims) {
+        OpacExpirationSimulator simulator = opacSimulator;
+        return simulator == null ? -1 : simulator.simulate(level, chunks, expireClaims);
+    }
+
+    /**
+     * Registers a listener notified whenever a schedule pass fires. Used by the OPAC compat (#6) to
+     * drop the expired claim after the configured pass; other integrations may follow. Registration is
+     * process-wide and expected once at setup, so there is no deregistration.
+     */
+    public static void onPassFired(SchedulePassListener listener) {
+        PASS_LISTENERS.add(listener);
+    }
+
+    static void firePassListeners(ServerLevel level, ScheduleSource source, LongOpenHashSet chunks,
+                                  int passIndex, boolean firstPass, boolean finalPass) {
+        for (SchedulePassListener listener : PASS_LISTENERS) {
+            try {
+                listener.onPassFired(level, source, chunks, passIndex, firstPass, finalPass);
+            } catch (Throwable t) {
+                LOGGER.error("World Degrade: a schedule pass listener failed", t);
+            }
+        }
+    }
+
+    /**
+     * Whether the single degradation job slot is free right now, so an integration's deferred
+     * side-effect (OPAC's unclaim, #6) can run without racing an in-flight pass or undo. Kept here so
+     * the OPAC compat never has to import {@link DegradeJob}/{@link UndoManager} — those imports would
+     * silently break the "OPAC runs capture no undo" acceptance criterion if they crept in.
+     */
+    public static boolean isIdle() {
+        return !DegradeJob.isBusy() && !UndoManager.isRestoring();
     }
 
     /**
@@ -49,7 +129,17 @@ public final class ScheduleService {
      * retained (the store copies only the chunks it actually claims).
      */
     public static ScheduleResult schedule(ServerLevel level, LongOpenHashSet packedChunks) {
-        if (!WorldDegradeConfig.scheduleEnabled() || WorldDegradeConfig.schedule().isEmpty()) {
+        return schedule(level, packedChunks, ScheduleSource.GLOBAL);
+    }
+
+    /**
+     * Source-aware overload. The pass table checked for emptiness — and later used to run the schedule
+     * — is the one that source resolves to, so OPAC (#6) is gated on its own table, not the global one.
+     * The master switch {@link WorldDegradeConfig#scheduleEnabled()} still gates every source.
+     */
+    public static ScheduleResult schedule(ServerLevel level, LongOpenHashSet packedChunks,
+                                          ScheduleSource source) {
+        if (!WorldDegradeConfig.scheduleEnabled() || WorldDegradeConfig.schedule(source).isEmpty()) {
             return ScheduleResult.rejected(ScheduleResult.Status.DISABLED);
         }
         if (WorldDegradeConfig.isDimensionDisabled(level)) {
@@ -62,7 +152,7 @@ public final class ScheduleService {
             return ScheduleResult.rejected(ScheduleResult.Status.TOO_LARGE);
         }
         ScheduledDegradations store = ScheduledDegradations.get(level);
-        int id = store.schedule(packedChunks, level.getGameTime());
+        int id = store.schedule(packedChunks, level.getGameTime(), source);
         if (id < 0) {
             return ScheduleResult.rejected(ScheduleResult.Status.ALREADY_SCHEDULED);
         }
@@ -87,8 +177,7 @@ public final class ScheduleService {
             return false;
         }
         ScheduledDegradations store = ScheduledDegradations.existing(level);
-        return store != null
-                && store.markInUse(chunk.toLong(), WorldDegradeConfig.releaseBlockThreshold());
+        return store != null && store.markInUse(chunk.toLong(), WorldDegradeConfig::threshold);
     }
 
     /**
@@ -97,16 +186,26 @@ public final class ScheduleService {
      * first and skip that bookkeeping entirely when it returns false.
      */
     public static boolean habitationCountingEnabled() {
-        return WorldDegradeConfig.scheduleEnabled() && WorldDegradeConfig.releaseBlockThreshold() > 0;
+        // Either threshold being positive is enough: a per-source counter must still tick even when the
+        // other source's check is off, or the Create schematicannon tracker would skip its bookkeeping
+        // and never count blocks into an OPAC schedule (and vice versa).
+        return WorldDegradeConfig.scheduleEnabled()
+                && (WorldDegradeConfig.releaseBlockThreshold() > 0
+                || WorldDegradeConfig.opacReleaseBlockThreshold() > 0);
     }
 
     /** Whether a schedule currently covers the chunk holding this position. Side-effect free. */
     public static boolean isScheduled(ServerLevel level, BlockPos pos) {
+        return isScheduled(level, new ChunkPos(pos).toLong());
+    }
+
+    /** Long-packed chunk overload of {@link #isScheduled(ServerLevel, BlockPos)}. */
+    public static boolean isScheduled(ServerLevel level, long packedChunk) {
         if (!WorldDegradeConfig.scheduleEnabled()) {
             return false;
         }
         ScheduledDegradations store = ScheduledDegradations.existing(level);
-        return store != null && store.isScheduled(new ChunkPos(pos).toLong());
+        return store != null && store.isScheduled(packedChunk);
     }
 
     /** Read-only view of the schedules active in this dimension. */

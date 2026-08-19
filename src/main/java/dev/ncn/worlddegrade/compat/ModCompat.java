@@ -43,7 +43,7 @@ public interface ModCompat {
     default void onUndo(MinecraftServer server, CompoundTag compatSection) {
     }
 
-    default void onServerStopping() {
+    default void onServerStopping(MinecraftServer server) {
     }
 
     default Boolean isFullyWorn(net.minecraft.world.level.block.state.BlockState state) {

@@ -18,6 +18,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Function;
+import java.util.function.ToIntFunction;
 
 /**
  * Per-dimension persistent store of active degradation schedules (#5). It holds only what cannot be
@@ -47,18 +49,25 @@ public class ScheduledDegradations extends SavedData {
         private long triggerGameTime;
         private int nextPass;
         private int uses;
+        private final ScheduleSource source;
         private final LongOpenHashSet chunks;
 
-        Entry(int id, long triggerGameTime, int nextPass, int uses, LongOpenHashSet chunks) {
+        Entry(int id, long triggerGameTime, int nextPass, int uses, ScheduleSource source,
+              LongOpenHashSet chunks) {
             this.id = id;
             this.triggerGameTime = triggerGameTime;
             this.nextPass = nextPass;
             this.uses = uses;
+            this.source = source;
             this.chunks = chunks;
         }
 
         public int id() {
             return id;
+        }
+
+        public ScheduleSource source() {
+            return source;
         }
 
         public int nextPass() {
@@ -115,6 +124,10 @@ public class ScheduledDegradations extends SavedData {
      * schedule.
      */
     public int schedule(LongOpenHashSet requested, long triggerGameTime) {
+        return schedule(requested, triggerGameTime, ScheduleSource.GLOBAL);
+    }
+
+    public int schedule(LongOpenHashSet requested, long triggerGameTime, ScheduleSource source) {
         LongOpenHashSet owned = new LongOpenHashSet(requested.size());
         for (long chunk : requested) {
             if (!chunkToEntry.containsKey(chunk)) {
@@ -125,7 +138,7 @@ public class ScheduledDegradations extends SavedData {
             return -1;
         }
         int id = nextId++;
-        entries.put(id, new Entry(id, triggerGameTime, 0, 0, owned));
+        entries.put(id, new Entry(id, triggerGameTime, 0, 0, source, owned));
         for (long chunk : owned) {
             chunkToEntry.put(chunk, id);
         }
@@ -140,15 +153,25 @@ public class ScheduledDegradations extends SavedData {
      * schedule is ever cancelled this way. Returns {@code true} only when a schedule was cancelled.
      */
     public boolean markInUse(long chunk, int threshold) {
-        if (threshold <= 0) {
-            return false;
-        }
+        return markInUse(chunk, source -> threshold);
+    }
+
+    /**
+     * As {@link #markInUse(long, int)} but with the threshold resolved from the owning entry's
+     * {@link ScheduleSource}, so OPAC schedules (#6) can use a different {@code releaseBlockThreshold}
+     * from manual ones.
+     */
+    public boolean markInUse(long chunk, ToIntFunction<ScheduleSource> thresholdBySource) {
         int id = chunkToEntry.get(chunk);
         if (id < 0) {
             return false;
         }
         Entry entry = entries.get(id);
         if (entry == null) {
+            return false;
+        }
+        int threshold = thresholdBySource.applyAsInt(entry.source);
+        if (threshold <= 0) {
             return false;
         }
         entry.uses++;
@@ -246,7 +269,18 @@ public class ScheduledDegradations extends SavedData {
      */
     @Nullable
     public Entry pollDue(long now, DegradeSchedule schedule) {
-        int passCount = schedule.passes().size();
+        return pollDue(now, source -> schedule);
+    }
+
+    /**
+     * Source-aware overload: each entry's table is resolved from its {@link ScheduleSource}, so OPAC
+     * entries (#6) can come due on their own table independently of the global one. An entry whose
+     * resolved table is <em>empty</em> is skipped, not pruned — an empty table means "misconfigured or
+     * paused right now", the same state the whole feature is in when switched off, and the entry must
+     * survive until the table is restored.
+     */
+    @Nullable
+    public Entry pollDue(long now, Function<ScheduleSource, DegradeSchedule> tableBySource) {
         Entry mostOverdue = null;
         long earliestDue = Long.MAX_VALUE;
         for (Entry entry : new ArrayList<>(entries.values())) {
@@ -256,7 +290,11 @@ public class ScheduledDegradations extends SavedData {
                 entry.triggerGameTime = now;
                 setDirty();
             }
-            if (entry.nextPass >= passCount) {
+            DegradeSchedule schedule = tableBySource.apply(entry.source);
+            if (schedule.isEmpty()) {
+                continue;
+            }
+            if (entry.nextPass >= schedule.passes().size()) {
                 removeEntry(entry.id);
                 continue;
             }
@@ -271,19 +309,23 @@ public class ScheduledDegradations extends SavedData {
 
     /** Advances an entry one pass forward, removing it once its passes are exhausted. */
     public void advance(Entry entry, DegradeSchedule schedule) {
-        advanceTo(entry, entry.nextPass, schedule);
+        advanceTo(entry, entry.nextPass, source -> schedule);
+    }
+
+    public void advanceTo(Entry entry, int firedPass, DegradeSchedule schedule) {
+        advanceTo(entry, firedPass, source -> schedule);
     }
 
     /**
      * Advances an entry to the pass after {@code firedPass}, so the scheduler can skip intermediate
      * overdue passes in one step. Resets the lived-in {@code uses} counter — the threshold measures
      * activity <em>since the last pass</em>, not cumulatively over the whole schedule's lifetime.
-     * Removes the entry once its passes are exhausted.
+     * Removes the entry once its passes are exhausted, using the entry's own resolved table.
      */
-    public void advanceTo(Entry entry, int firedPass, DegradeSchedule schedule) {
+    public void advanceTo(Entry entry, int firedPass, Function<ScheduleSource, DegradeSchedule> tableBySource) {
         entry.nextPass = firedPass + 1;
         entry.uses = 0;
-        if (entry.nextPass >= schedule.passes().size()) {
+        if (entry.nextPass >= tableBySource.apply(entry.source).passes().size()) {
             removeEntry(entry.id);
         } else {
             setDirty();
@@ -322,8 +364,12 @@ public class ScheduledDegradations extends SavedData {
             for (long chunk : chunkArray) {
                 chunks.add(chunk);
             }
+            // Missing on saves written before #6, and any unknown key from a newer build, load as
+            // GLOBAL — the pre-#6 behaviour.
+            ScheduleSource source = ScheduleSource.fromKey(entryTag.getString("source"));
             Entry entry = new Entry(id, entryTag.getLong("trigger"),
-                    Math.max(0, entryTag.getInt("pass")), Math.max(0, entryTag.getInt("uses")), chunks);
+                    Math.max(0, entryTag.getInt("pass")), Math.max(0, entryTag.getInt("uses")),
+                    source, chunks);
             data.entries.put(id, entry);
             for (long chunk : chunks) {
                 data.chunkToEntry.put(chunk, id);
@@ -346,6 +392,7 @@ public class ScheduledDegradations extends SavedData {
             entryTag.putLong("trigger", entry.triggerGameTime);
             entryTag.putInt("pass", entry.nextPass);
             entryTag.putInt("uses", entry.uses);
+            entryTag.putString("source", entry.source.key());
             // Sorted, spatially-clustered chunk longs compress far better than hash order.
             long[] sorted = entry.chunks.toLongArray();
             Arrays.sort(sorted);

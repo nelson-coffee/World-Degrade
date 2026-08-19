@@ -151,7 +151,7 @@ public class DegradeJob {
             active = null;
         }
         UndoManager.shutdown();
-        CompatManager.onServerStopping();
+        CompatManager.onServerStopping(event.getServer());
     }
 
     private void tick(MinecraftServer server) {

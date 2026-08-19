@@ -112,7 +112,7 @@ public class SableCompat implements ModCompat {
     }
 
     @Override
-    public void onServerStopping() {
+    public void onServerStopping(MinecraftServer server) {
         ON_LOAD_QUEUE.clear();
     }
 

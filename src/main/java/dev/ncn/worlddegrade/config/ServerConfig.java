@@ -47,6 +47,14 @@ public final class ServerConfig {
     final ModConfigSpec.IntValue releaseBlockThreshold;
     final ModConfigSpec.BooleanValue schematicannonCountsAsInhabited;
 
+    // Open Parties and Claims integration (#6)
+    final ModConfigSpec.BooleanValue opacEnabled;
+    final ModConfigSpec.BooleanValue opacUseCustomSchedule;
+    final ModConfigSpec.ConfigValue<List<? extends Integer>> opacCustomPassDelays;
+    final ModConfigSpec.ConfigValue<List<? extends Integer>> opacCustomPassLevels;
+    final ModConfigSpec.EnumValue<ClaimRemovalTiming> opacRemoveClaimAfter;
+    final ModConfigSpec.IntValue opacReleaseBlockThreshold;
+
     // Blocks
     final ModConfigSpec.BooleanValue enableBurntBlockVariants;
 
@@ -144,6 +152,53 @@ public final class ServerConfig {
                         "for degradation while leaving schedules alone: a cannon a player set up and walked away",
                         "from is a machine still running, not somebody moving back in.")
                 .define("schematicannonCountsAsInhabited", true);
+
+        builder.pop();
+
+        builder.comment("Open Parties and Claims (OPAC) integration.",
+                        "When a player's claim expires in OPAC, its chunks are fed into the schedule",
+                        "feature above so the abandoned base degrades progressively into a lootable ruin.",
+                        "Requires [schedule].enabled = true (this only feeds that system, it does not",
+                        "degrade anything on its own) and OPAC's own playerClaimsConvertExpiredClaims =",
+                        "false (with it on, expiration frees claims to wilderness/server instead of marking",
+                        "them EXPIRED, so no signal reaches this integration and it stays inert).",
+                        "Has no effect unless OPAC is installed.",
+                        "OPAC-triggered runs never capture an undo snapshot.")
+                .push("opac");
+
+        opacEnabled = builder
+                .comment("Master switch for the OPAC integration. When off, claim expirations are ignored.")
+                .define("enabled", true);
+        opacUseCustomSchedule = builder
+                .comment("Use the OPAC-specific pass table below instead of the shared [schedule] table.",
+                        "When false, OPAC expirations run the same passDelays/passLevels as everything else;",
+                        "manual /degrade schedule entries always keep using the [schedule] table regardless.")
+                .define("useCustomSchedule", false);
+        opacCustomPassDelays = builder
+                .comment("Delay of each OPAC pass in real-life MINUTES after the claim expired, same unit as",
+                        "[schedule].passDelays. Only used when useCustomSchedule = true. Paired by index with",
+                        "customPassLevels; non-positive delays are dropped and pairs are sorted ascending.")
+                .defineListAllowEmpty("customPassDelays", List.of(7, 30, 60), () -> 7, o -> o instanceof Integer);
+        opacCustomPassLevels = builder
+                .comment("Severity level (1-5) of each OPAC pass, paired by index with customPassDelays.")
+                .defineListAllowEmpty("customPassLevels", List.of(1, 3, 5), () -> 1, o -> o instanceof Integer);
+        opacRemoveClaimAfter = builder
+                .comment("When to drop the expired claim so other players can loot the ruin:",
+                        "  FINAL_PASS - after the last degradation pass finishes (safest; loot only at the end)",
+                        "  FIRST_PASS - after the first pass finishes, then it keeps crumbling while looted",
+                        "  SCHEDULE   - immediately when the schedule is created, before any degradation",
+                        "  NEVER      - leave the expired claim in place",
+                        "The claim is only ever dropped if it is still owned by OPAC's expired-claim owner:",
+                        "if someone re-claims a chunk during the schedule, that new claim is left untouched.",
+                        "Note: with FIRST_PASS or SCHEDULE the claim is gone before the schedule could be",
+                        "cancelled, and OPAC does not expose the old owner, so a later cancellation cannot",
+                        "restore it — the area simply stays unclaimed.")
+                .defineEnum("removeClaimAfter", ClaimRemovalTiming.FIRST_PASS);
+        opacReleaseBlockThreshold = builder
+                .comment("Overrides [schedule].releaseBlockThreshold for OPAC schedules only. 0 means looters",
+                        "placing blocks never cancel the degradation, which is what you usually want once a",
+                        "ruin has opened up for looting. Manual schedules keep using [schedule].releaseBlockThreshold.")
+                .defineInRange("releaseBlockThreshold", 0, 0, 4096);
 
         builder.pop();
 

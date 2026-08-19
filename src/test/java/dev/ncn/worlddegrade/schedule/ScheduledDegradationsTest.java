@@ -8,6 +8,8 @@ import net.minecraft.world.level.ChunkPos;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.function.Function;
+import java.util.function.ToIntFunction;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -311,6 +313,97 @@ class ScheduledDegradationsTest {
         assertTrue(reloaded.isScheduled(chunk(0, 0)));
         assertFalse(reloaded.isScheduled(chunk(5, 5)));
         assertFalse(reloaded.isScheduled(chunk(9, 9)));
+    }
+
+    @Test
+    void newEntriesDefaultToTheGlobalSource() {
+        ScheduledDegradations store = new ScheduledDegradations();
+        int id = store.schedule(set(chunk(0, 0)), 0L);
+        assertEquals(ScheduleSource.GLOBAL, byId(store, id).source());
+    }
+
+    @Test
+    void theSourceSurvivesAnNbtRoundTrip() {
+        ScheduledDegradations original = new ScheduledDegradations();
+        int global = original.schedule(set(chunk(0, 0)), 0L, ScheduleSource.GLOBAL);
+        int opac = original.schedule(set(chunk(5, 5)), 0L, ScheduleSource.OPAC);
+
+        ScheduledDegradations reloaded =
+                ScheduledDegradations.load(original.save(new CompoundTag(), null), null);
+        assertEquals(ScheduleSource.GLOBAL, byId(reloaded, global).source());
+        assertEquals(ScheduleSource.OPAC, byId(reloaded, opac).source());
+    }
+
+    @Test
+    void anEntryWithoutAStoredSourceLoadsAsGlobal() {
+        ScheduledDegradations store = new ScheduledDegradations();
+        store.schedule(set(chunk(0, 0)), 0L, ScheduleSource.OPAC);
+        CompoundTag tag = store.save(new CompoundTag(), null);
+        // Simulate a save written before #6 by stripping the source key.
+        tag.getList("entries", Tag.TAG_COMPOUND).getCompound(0).remove("source");
+        ScheduledDegradations reloaded = ScheduledDegradations.load(tag, null);
+        assertEquals(ScheduleSource.GLOBAL, reloaded.entries().iterator().next().source());
+    }
+
+    @Test
+    void anUnknownStoredSourceLoadsAsGlobal() {
+        ScheduledDegradations store = new ScheduledDegradations();
+        store.schedule(set(chunk(0, 0)), 0L, ScheduleSource.OPAC);
+        CompoundTag tag = store.save(new CompoundTag(), null);
+        tag.getList("entries", Tag.TAG_COMPOUND).getCompound(0).putString("source", "future_source");
+        ScheduledDegradations reloaded = ScheduledDegradations.load(tag, null);
+        assertEquals(ScheduleSource.GLOBAL, reloaded.entries().iterator().next().source());
+    }
+
+    @Test
+    void eachSourceComesDueOnItsOwnTable() {
+        ScheduledDegradations store = new ScheduledDegradations();
+        DegradeSchedule globalTable = DegradeSchedule.fromConfig(List.of(60), List.of(1));
+        DegradeSchedule opacTable = DegradeSchedule.fromConfig(List.of(7), List.of(1));
+        Function<ScheduleSource, DegradeSchedule> tables = source ->
+                source == ScheduleSource.OPAC ? opacTable : globalTable;
+
+        int global = store.schedule(set(chunk(0, 0)), 0L, ScheduleSource.GLOBAL);
+        int opac = store.schedule(set(chunk(5, 5)), 0L, ScheduleSource.OPAC);
+
+        long opacDue = 7 * DegradeSchedule.MINUTE_TICKS;
+        long globalDue = 60 * DegradeSchedule.MINUTE_TICKS;
+        // At the OPAC delay only the OPAC entry is due — the global one is on its own longer table.
+        assertEquals(opac, store.pollDue(opacDue, tables).id());
+        store.removeById(opac);
+        // With OPAC gone, the global entry stays on its own 60-minute table.
+        assertNull(store.pollDue(globalDue - 1, tables));
+        assertEquals(global, store.pollDue(globalDue, tables).id());
+    }
+
+    @Test
+    void anEntryWhoseTableIsEmptyIsSkippedNotPruned() {
+        ScheduledDegradations store = new ScheduledDegradations();
+        DegradeSchedule globalTable = DegradeSchedule.fromConfig(List.of(7), List.of(1));
+        DegradeSchedule emptyOpacTable = new DegradeSchedule(List.of());
+        Function<ScheduleSource, DegradeSchedule> tables = source ->
+                source == ScheduleSource.OPAC ? emptyOpacTable : globalTable;
+
+        store.schedule(set(chunk(0, 0)), 0L, ScheduleSource.OPAC);
+        long farFuture = 1_000L * DegradeSchedule.MINUTE_TICKS;
+        // An empty (paused/misconfigured) table must not fire and must not destroy the entry.
+        assertNull(store.pollDue(farFuture, tables));
+        assertEquals(1, store.entries().size());
+    }
+
+    @Test
+    void thresholdIsResolvedFromTheOwningEntrysSource() {
+        ScheduledDegradations store = new ScheduledDegradations();
+        store.schedule(set(chunk(0, 0)), 0L, ScheduleSource.GLOBAL);
+        store.schedule(set(chunk(5, 5)), 0L, ScheduleSource.OPAC);
+        // GLOBAL disabled (0), OPAC releases after a single placement.
+        ToIntFunction<ScheduleSource> thresholds = source ->
+                source == ScheduleSource.OPAC ? 1 : 0;
+
+        assertFalse(store.markInUse(chunk(0, 0), thresholds));
+        assertTrue(store.isScheduled(chunk(0, 0)));
+        assertTrue(store.markInUse(chunk(5, 5), thresholds));
+        assertFalse(store.isScheduled(chunk(5, 5)));
     }
 
     private static ScheduledDegradations.Entry byId(ScheduledDegradations store, int id) {

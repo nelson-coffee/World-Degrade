@@ -49,6 +49,7 @@ public final class CompatManager {
         register("supplementaries", () -> new dev.ncn.worlddegrade.compat.supplementaries.SupplementariesCompat());
         register("computercraft", () -> new dev.ncn.worlddegrade.compat.computercraft.ComputerCraftCompat());
         register("rechiseled", () -> new dev.ncn.worlddegrade.compat.rechiseled.RechiseledCompat());
+        register("openpartiesandclaims", () -> new dev.ncn.worlddegrade.compat.opac.OpacCompat());
     }
 
     private static void register(String modId, Supplier<ModCompat> factory) {
@@ -155,10 +156,10 @@ public final class CompatManager {
         }
     }
 
-    public static void onServerStopping() {
+    public static void onServerStopping(MinecraftServer server) {
         for (ModCompat compat : ACTIVE) {
             try {
-                compat.onServerStopping();
+                compat.onServerStopping(server);
             } catch (Throwable t) {
                 LOGGER.error("World Degrade: {} compat failed during shutdown cleanup", compat.modId(), t);
             }

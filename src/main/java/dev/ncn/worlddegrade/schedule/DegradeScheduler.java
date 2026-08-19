@@ -18,6 +18,8 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import org.slf4j.Logger;
 
+import java.util.function.Function;
+
 /**
  * Fires degradation schedules whose next pass has come due. Runs on the server tick, but only checks
  * every {@link #CHECK_INTERVAL_TICKS} ticks — one second is fine precision for minute-scale delays,
@@ -55,10 +57,10 @@ public final class DegradeScheduler {
         if (!WorldDegradeConfig.scheduleEnabled()) {
             return;
         }
-        DegradeSchedule schedule = WorldDegradeConfig.schedule();
-        if (schedule.isEmpty()) {
-            return;
-        }
+        // No global-empty short-circuit: an empty global table must not stop OPAC entries (#6) that
+        // carry their own table. Each entry's table is resolved from its source below; an entry whose
+        // table is empty is simply skipped by pollDue.
+        Function<ScheduleSource, DegradeSchedule> tableBySource = WorldDegradeConfig::schedule;
         MinecraftServer server = event.getServer();
         // Every dimension has its pause absorbed before anything fires. Doing it in the same loop as
         // the firing would mean the one-pass-per-check return skipped the dimensions after it, and
@@ -86,8 +88,8 @@ public final class DegradeScheduler {
             if (store == null || store.entries().isEmpty()) {
                 continue;
             }
-            ScheduledDegradations.Entry due = store.pollDue(level.getGameTime(), schedule);
-            if (due != null && fire(level, store, due, schedule)) {
+            ScheduledDegradations.Entry due = store.pollDue(level.getGameTime(), tableBySource);
+            if (due != null && fire(level, store, due, tableBySource)) {
                 return;
             }
         }
@@ -95,7 +97,9 @@ public final class DegradeScheduler {
 
     /** @return true when this check has done its work (started a pass or pruned an entry). */
     private static boolean fire(ServerLevel level, ScheduledDegradations store,
-                                ScheduledDegradations.Entry due, DegradeSchedule schedule) {
+                                ScheduledDegradations.Entry due,
+                                Function<ScheduleSource, DegradeSchedule> tableBySource) {
+        DegradeSchedule schedule = tableBySource.apply(due.source());
         // Jump over any intermediate passes that are also already overdue so a backlog resolves to one
         // pass at the highest overdue level rather than firing every level a check apart.
         int firePass = schedule.latestDuePass(due.triggerGameTime(), due.nextPass(), level.getGameTime());
@@ -114,7 +118,18 @@ public final class DegradeScheduler {
                 LOGGER.info("World Degrade: schedule #{} fired pass {} (level {}) over {} chunk(s) in {}",
                         due.id(), firePass + 1, pass.levelId(), due.chunkCount(),
                         level.dimension().location());
-                store.advanceTo(due, firePass, schedule);
+                // Capture before advancing: advanceTo may remove the entry (final pass), after which
+                // its chunk set is gone. finalPass reflects the entry's own resolved table.
+                LongOpenHashSet firedChunks = new LongOpenHashSet(due.chunks());
+                ScheduleSource source = due.source();
+                boolean finalPass = firePass + 1 >= schedule.passes().size();
+                // Read from the entry before advancing: nextPass == 0 means nothing has fired yet, so
+                // this is the schedule's first pass even when a backlog collapse jumped firePass past 0.
+                boolean firstPass = due.nextPass() == 0;
+                store.advanceTo(due, firePass, tableBySource);
+                // Only this normal "a pass fired" path notifies. Cancellation and pruning (the other
+                // branches below) deliberately do not, so a listener treats every callback as progress.
+                ScheduleService.firePassListeners(level, source, firedChunks, firePass, firstPass, finalPass);
                 return true;
             }
             case BUSY -> {
@@ -137,7 +152,9 @@ public final class DegradeScheduler {
                 LOGGER.warn("World Degrade: schedule #{} pass {} found nothing tracked to degrade "
                         + "(is enablePlacementTracking on?); advancing past it",
                         due.id(), firePass + 1);
-                store.advanceTo(due, firePass, schedule);
+                // No pass listener here: nothing was degraded, so an OPAC schedule must not drop its
+                // claim on a pass that did no work.
+                store.advanceTo(due, firePass, tableBySource);
                 return true;
             }
         }

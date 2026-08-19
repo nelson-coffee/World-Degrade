@@ -1,6 +1,7 @@
 package dev.ncn.worlddegrade.command;
 
 import com.mojang.brigadier.Command;
+import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import dev.ncn.worlddegrade.WorldDegrade;
@@ -88,6 +89,16 @@ public final class DegradeCommand {
                                         .executes(DegradeCommand::scheduleCancelAll))
                                 .then(Commands.argument("id", IntegerArgumentType.integer(1))
                                         .executes(DegradeCommand::scheduleCancel))))
+                .then(Commands.literal("opac")
+                        .then(Commands.literal("simulate")
+                                .then(Commands.argument("fromChunkX", IntegerArgumentType.integer())
+                                        .then(Commands.argument("fromChunkZ", IntegerArgumentType.integer())
+                                                .then(Commands.argument("toChunkX", IntegerArgumentType.integer())
+                                                        .then(Commands.argument("toChunkZ", IntegerArgumentType.integer())
+                                                                .executes(context -> opacSimulate(context, false))
+                                                                .then(Commands.argument("expireClaims", BoolArgumentType.bool())
+                                                                        .executes(context -> opacSimulate(context,
+                                                                                BoolArgumentType.getBool(context, "expireClaims"))))))))))
                 .then(Commands.literal("playerblockset")
                         .executes(context -> {
                             ServerPlayer player = context.getSource().getPlayerOrException();
@@ -190,8 +201,6 @@ public final class DegradeCommand {
     private static int scheduleList(CommandContext<CommandSourceStack> context) {
         CommandSourceStack source = context.getSource();
         ServerLevel level = source.getLevel();
-        DegradeSchedule schedule = WorldDegradeConfig.schedule();
-        int threshold = WorldDegradeConfig.releaseBlockThreshold();
         List<ScheduledDegradations.Entry> entries = new ArrayList<>(ScheduleService.activeSchedules(level));
         if (entries.isEmpty()) {
             source.sendSuccess(() -> Component.translatable("chat.worlddegrade.schedule.list.empty"), false);
@@ -200,11 +209,16 @@ public final class DegradeCommand {
         entries.sort(Comparator.comparingInt(ScheduledDegradations.Entry::id));
         source.sendSuccess(() -> Component.translatable("chat.worlddegrade.schedule.list.header",
                 entries.size()), false);
-        // While the feature is off the clocks are frozen, so a countdown would be a lie — say so
-        // instead of printing a remaining time that is not ticking down.
-        boolean paused = !WorldDegradeConfig.scheduleEnabled() || schedule.isEmpty();
+        boolean enabled = WorldDegradeConfig.scheduleEnabled();
         long now = level.getGameTime();
         for (ScheduledDegradations.Entry entry : entries) {
+            // Each entry counts down on its own table (OPAC vs global, #6) and against its own
+            // inhabited threshold.
+            DegradeSchedule schedule = WorldDegradeConfig.schedule(entry.source());
+            int threshold = WorldDegradeConfig.threshold(entry.source());
+            // While the feature is off the clocks are frozen, so a countdown would be a lie — say so
+            // instead of printing a remaining time that is not ticking down.
+            boolean paused = !enabled || schedule.isEmpty();
             String nextLevel = "-";
             Component timing;
             if (entry.nextPass() >= schedule.passes().size()) {
@@ -247,6 +261,49 @@ public final class DegradeCommand {
         CommandSourceStack source = context.getSource();
         int removed = ScheduleService.cancelAll(source.getLevel());
         source.sendSuccess(() -> Component.translatable("chat.worlddegrade.schedule.cancelled.all", removed), true);
+        return Command.SINGLE_SUCCESS;
+    }
+
+    /**
+     * Dev/QA helper: drives the OPAC claim-expiration path on demand. OPAC only expires claims of
+     * players inactive for hours, which cannot be reproduced quickly in a test session, so this feeds
+     * the selected chunks into the same batcher OPAC's expiration callback uses. An OPAC-sourced
+     * schedule then appears within a couple of seconds. It does not fake the OPAC claim data, so the
+     * post-pass unclaim only ever drops chunks OPAC itself still marks as expired.
+     */
+    private static int opacSimulate(CommandContext<CommandSourceStack> context, boolean expireClaims) {
+        CommandSourceStack source = context.getSource();
+        if (!ScheduleService.opacSimulationAvailable()) {
+            source.sendFailure(Component.translatable("chat.worlddegrade.opac.unavailable"));
+            return 0;
+        }
+        int fromX = IntegerArgumentType.getInteger(context, "fromChunkX");
+        int fromZ = IntegerArgumentType.getInteger(context, "fromChunkZ");
+        int toX = IntegerArgumentType.getInteger(context, "toChunkX");
+        int toZ = IntegerArgumentType.getInteger(context, "toChunkZ");
+        long requested = DegradeArea.chunkRectangleCount(fromX, fromZ, toX, toZ);
+        if (requested > ScheduleService.MAX_CHUNKS) {
+            source.sendFailure(Component.translatable("chat.worlddegrade.area.toobig",
+                    ScheduleService.MAX_CHUNKS, requested));
+            return 0;
+        }
+        LongOpenHashSet packed = DegradeArea.chunkRectangle(fromX, fromZ, toX, toZ).packedChunks();
+        int queued = ScheduleService.simulateOpacExpiration(source.getLevel(), packed, expireClaims);
+        source.sendSuccess(() -> Component.translatable("chat.worlddegrade.opac.simulated", queued), true);
+        // Head off the natural follow-up "why wasn't the claim removed?": by default the claim-removal
+        // half is a no-op because no chunk is actually expired. expireClaims = true forces the chunks to
+        // OPAC's expired owner so the whole unclaim path is exercised.
+        if (expireClaims) {
+            source.sendSuccess(() -> Component.translatable("chat.worlddegrade.opac.simulated.expire", queued)
+                    .withStyle(ChatFormatting.GRAY), false);
+        } else {
+            source.sendSuccess(() -> Component.translatable("chat.worlddegrade.opac.simulated.note")
+                    .withStyle(ChatFormatting.GRAY), false);
+        }
+        if (!WorldDegradeConfig.placementTrackingEnabled()) {
+            source.sendSuccess(() -> Component.translatable("chat.worlddegrade.schedule.untracked")
+                    .withStyle(ChatFormatting.YELLOW), false);
+        }
         return Command.SINGLE_SUCCESS;
     }
 

@@ -69,6 +69,65 @@ Notes:
 
 Other mods can drive this through the `ScheduleService` API (`schedule`, `markInUse`, `isScheduled`, `cancel`) — the schedule system is standalone and does not depend on any claim mod.
 
+## Claim expiration (Open Parties and Claims)
+
+With [Open Parties and Claims](https://modrinth.com/mod/open-parties-and-claims) (OPAC) installed, an abandoned claim can rot on its own. When a player's claim expires, its chunks are handed to the progressive schedule above, so the ruin appears over the same staged passes rather than all at once. This is optional and does nothing without OPAC.
+
+> [!IMPORTANT]
+> This only reacts to claims OPAC actually marks as *expired*. OPAC's own `playerClaimsConvertExpiredClaims` must be **off** — if OPAC is set to convert expired claims to server or wilderness claims instead, they never enter the expired state and this integration stays inert. OPAC-triggered runs never capture an undo snapshot.
+
+Configure it under `[opac]`:
+
+```toml
+[opac]
+# Master switch. When off, claim expirations are ignored.
+enabled = true
+# Use the OPAC pass table below instead of the shared [schedule] one.
+useCustomSchedule = false
+# Only used when useCustomSchedule = true. Real-life MINUTES after the claim expired, paired by
+# index with customPassLevels — same units and pairing rules as [schedule].
+customPassDelays = [7, 30, 60]
+customPassLevels = [1, 3, 5]
+# When to drop the expired claim so others can loot the ruin:
+#   FINAL_PASS - after the last pass finishes (loot only at the very end)
+#   FIRST_PASS - after the first pass finishes, then it keeps crumbling while looted (default)
+#   SCHEDULE   - immediately when the schedule is created, before any degradation
+#   NEVER      - leave the expired claim in place
+removeClaimAfter = "FIRST_PASS"
+# Overrides [schedule].releaseBlockThreshold for OPAC schedules only. 0 (default) means looters
+# placing blocks never cancel the degradation.
+releaseBlockThreshold = 0
+```
+
+Notes:
+
+- The `[schedule]` feature must be enabled for OPAC schedules to run — the integration only feeds chunks into that system, it does not degrade anything on its own. A warning is logged at startup if OPAC is on while `[schedule]` is off.
+- Thousands of chunks expiring at once are batched into a handful of schedules rather than one per chunk, and any leftover batch is flushed on server shutdown.
+- The claim is only ever dropped if it is still owned by OPAC's expired-claim owner, so a chunk someone re-claims mid-schedule is left untouched. With `FIRST_PASS` or `SCHEDULE` the claim is released before the schedule could be cancelled, and OPAC does not expose the old owner, so the area simply stays unclaimed rather than being restored.
+
+### When does a claim actually expire?
+
+Expiration is driven entirely by OPAC, not by this mod. OPAC only expires a claim once its **owner has been completely offline/inactive for `playerClaimsExpirationTime` hours** (OPAC config, minimum 1 hour), and it checks for expired claims every `playerClaimsExpirationCheckInterval` minutes (rounded up to a multiple of 10). Crucially, `playerClaimsConvertExpiredClaims` must stay **off** — with it on, OPAC frees claims to wilderness/server instead of marking them expired, and nothing reaches this integration.
+
+Because the owner must be offline, you cannot make a claim expire in single-player, and even on a dedicated server the fastest real path is: set `playerClaimsExpirationTime = 1`, claim some chunks with a test account, log that account out, and wait for the next expiration check.
+
+### Testing without waiting (dev command)
+
+To exercise the integration on demand there is an operator command (permission level 2), available only when OPAC is installed:
+
+```
+/degrade opac simulate <fromChunkX> <fromChunkZ> <toChunkX> <toChunkZ> [expireClaims]
+```
+
+It feeds the selected chunks into the exact pipeline OPAC's expiration callback uses (debounced batching → an OPAC-sourced schedule → the post-pass unclaim), so an OPAC schedule appears within ~2 seconds and then degrades on the `[opac]` table. By default (`expireClaims` omitted or `false`) it does **not** touch OPAC's claim data, so the unclaim step still only drops chunks OPAC itself marks as expired — running it over live claims is safe and simply leaves them claimed.
+
+**Do I need to claim the chunks first? No.** The command drives the degradation half of the integration directly, so the only thing you need in the selected chunks is some **built, placement-tracked structure** — claims have no bearing on whether it degrades. What you *cannot* observe from the default `simulate` alone is the automatic unclaim, because a chunk can only reach OPAC's "expired" state if it was claimed and then expired by OPAC (expiration replaces an existing claim's owner; it never invents a claim on empty land). So:
+
+- **To see degradation:** just build something in the chunks (with `enablePlacementTracking = true`) and run the command — no claiming needed.
+- **To see the automatic unclaim too:** run `/degrade opac simulate <...> true`. The trailing `expireClaims = true` first rewrites the selected chunks to OPAC's expired-claim owner (exactly as a real expiration does), so the post-pass unclaim genuinely removes them. This **overwrites any claim already there**, so it is opt-in and defaults to off.
+
+> Why won't my *own* live claim get removed? Because the unclaim step, by design, only ever drops chunks whose owner is OPAC's `EXPIRED` pseudo-player. A claim you still own is a live claim, not an expired one, so degradation runs but the claim stays — this is the intended safety guard against unclaiming land someone re-claimed mid-schedule. Use the `true` flag (or a genuine OPAC expiration) to reach the expired state the unclaim actually acts on.
+
 ## Known Issues
 
 - Assembled create contraptions including trains are extremely buggy as of now the current fix is to disassemble all contraptions before a degrade or sometimes a server restart fixes it
