@@ -1,5 +1,6 @@
 package dev.ncn.worlddegrade.net;
 
+import dev.ncn.worlddegrade.config.WorldDegradeConfig;
 import dev.ncn.worlddegrade.degrade.DegradeChances;
 import dev.ncn.worlddegrade.degrade.DegradeJob;
 import dev.ncn.worlddegrade.degrade.DegradeLevel;
@@ -23,6 +24,10 @@ public final class ServerPayloadHandler {
         }
         if (DegradeJob.isBusy() || UndoManager.isRestoring()) {
             player.sendSystemMessage(Component.translatable("chat.worlddegrade.busy"));
+            return;
+        }
+        if (WorldDegradeConfig.isDimensionDisabled(player.serverLevel())) {
+            player.sendSystemMessage(Component.translatable("chat.worlddegrade.dimension_disabled"));
             return;
         }
         DegradeLevel level = DegradeLevel.byId(payload.level());

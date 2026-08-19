@@ -19,6 +19,14 @@ repositories {
     }
 }
 
+def sableCompanionDir = layout.buildDirectory.dir('sable-companion')
+
+configurations {
+    // Resolves the Sable mod jar on its own so extractSableCompanion can unpack
+    // the companion classes Sable ships jar-in-jar.
+    sableCompanion
+}
+
 dependencies {
     compileOnly("com.simibubi.create:create-${minecraft_version}:${create_version}") { transitive = false }
     compileOnly("net.createmod.catnip:Catnip-NeoForge-${minecraft_version}:${catnip_version}") { transitive = false }
@@ -26,14 +34,33 @@ dependencies {
     compileOnly("maven.modrinth:waystones:${waystones_version}") { transitive = false }
     compileOnly("maven.modrinth:balm:${balm_version}") { transitive = false }
     compileOnly("maven.modrinth:sable:${sable_version}") { transitive = false }
-    // Sable's companion math/access classes ship jar-in-jar, not on any maven;
-    // extracted from the sable jar (see libs/) for compile-time visibility only.
-    compileOnly files("libs/sable-companion-common-1.21.1-1.6.0.jar")
     // Exposure, for PhotographFrameEntity's get/setItem. Supplementaries needs
     // no dependency — its globes are swapped by registry id.
-    compileOnly files("libs/exposure-neoforge-1.21.1-1.9.18.jar")
-    // CC:Tweaked for computer/disk corruption feature.
-    compileOnly files("run/mods/cc-tweaked-1.21.1-forge-1.120.0.jar")
+    compileOnly("maven.modrinth:exposure:${exposure_version}") { transitive = false }
+
+    sableCompanion("maven.modrinth:sable:${sable_version}") { transitive = false }
+    compileOnly fileTree(sableCompanionDir) {
+        include '*.jar'
+        builtBy 'extractSableCompanion'
+    }
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.11.0'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+// dev.ryanhcode.sable.companion.* is published only as a nested jar inside the
+// Sable mod jar, so unpack it rather than vendoring a copy into the repo.
+tasks.register('extractSableCompanion', Sync) {
+    from({ zipTree(configurations.sableCompanion.singleFile) }) {
+        include 'META-INF/jarjar/sable-companion-common-*.jar'
+        eachFile { it.relativePath = new RelativePath(true, it.name) }
+        includeEmptyDirs = false
+    }
+    into sableCompanionDir
+}
+
+test {
+    useJUnitPlatform()
 }
 
 java {
@@ -44,6 +71,10 @@ java {
 
 neoForge {
     version = project.neo_version
+
+    // SectionBitStoreTest compiles against BlockPos/SectionPos and the Mojang
+    // codecs, so the test source set needs the Minecraft artifacts too.
+    addModdingDependenciesTo sourceSets.test
 
     parchment {
         mappingsVersion = '2024.11.17'
@@ -65,6 +96,7 @@ neoForge {
     mods {
         "${mod_id}" {
             sourceSet(sourceSets.main)
+            sourceSet(sourceSets.test)
         }
     }
 }

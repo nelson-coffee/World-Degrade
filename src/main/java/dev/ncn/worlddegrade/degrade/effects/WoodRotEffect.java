@@ -7,6 +7,11 @@ import net.minecraft.tags.BlockTags;
 import net.minecraft.world.level.block.state.BlockState;
 
 public class WoodRotEffect implements DegradeEffect {
+    private final boolean enabled;
+
+    public WoodRotEffect(boolean enabled) {
+        this.enabled = enabled;
+    }
 
     @Override
     public void apply(DegradeContext ctx) {
@@ -17,6 +22,9 @@ public class WoodRotEffect implements DegradeEffect {
                 continue;
             }
             ctx.claim(pos);
+            if (!enabled) {
+                continue;
+            }
             if (!BrickWeatherEffect.isFullyWorn(ctx, pos, state)) {
                 continue;
             }

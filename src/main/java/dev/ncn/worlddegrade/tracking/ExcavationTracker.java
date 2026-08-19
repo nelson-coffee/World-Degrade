@@ -1,7 +1,7 @@
 package dev.ncn.worlddegrade.tracking;
 
 import dev.ncn.worlddegrade.WorldDegrade;
-import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import dev.ncn.worlddegrade.config.WorldDegradeConfig;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
@@ -23,19 +23,25 @@ public final class ExcavationTracker {
 
     @SubscribeEvent
     public static void onBlockBroken(BlockEvent.BreakEvent event) {
-        if (event.getLevel() instanceof ServerLevel level && event.getPlayer() != null) {
+        if (event.getLevel() instanceof ServerLevel level && event.getPlayer() != null
+                && trackingEnabled(level)) {
             record(level, event.getPos());
         }
     }
 
     @SubscribeEvent
     public static void onExplosion(ExplosionEvent.Detonate event) {
-        if (!(event.getLevel() instanceof ServerLevel level) || !isDeliberateBlast(event)) {
+        if (!(event.getLevel() instanceof ServerLevel level) || !trackingEnabled(level)
+                || !isDeliberateBlast(event)) {
             return;
         }
         for (BlockPos pos : event.getAffectedBlocks()) {
             record(level, pos);
         }
+    }
+
+    private static boolean trackingEnabled(ServerLevel level) {
+        return WorldDegradeConfig.excavationTrackingEnabled() && WorldDegradeConfig.isDimensionTracked(level);
     }
 
     private static boolean isDeliberateBlast(ExplosionEvent.Detonate event) {
@@ -77,7 +83,7 @@ public final class ExcavationTracker {
         if (!chunk.hasData(ModAttachments.EXCAVATED_CEILINGS)) {
             return new long[0];
         }
-        return ((LongOpenHashSet) chunk.getData(ModAttachments.EXCAVATED_CEILINGS)).toLongArray();
+        return chunk.getData(ModAttachments.EXCAVATED_CEILINGS).toLongArray();
     }
 
     public static boolean isExcavatedCeiling(LevelChunk chunk, BlockPos pos) {

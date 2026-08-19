@@ -1,7 +1,0 @@
-{
- "parent": "minecraft:block/template_torch_wall",
- "textures": {
-  "torch": "worlddegrade:block/burnt_soul_torch"
- },
- "render_type": "minecraft:cutout"
-}

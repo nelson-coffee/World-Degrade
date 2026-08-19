@@ -3,6 +3,7 @@ package dev.ncn.worlddegrade.degrade;
 import dev.ncn.worlddegrade.WorldDegrade;
 import dev.ncn.worlddegrade.compat.CompatManager;
 import dev.ncn.worlddegrade.compat.RunWork;
+import dev.ncn.worlddegrade.config.WorldDegradeConfig;
 import dev.ncn.worlddegrade.degrade.effects.DegradeEffect;
 import dev.ncn.worlddegrade.marking.MarkedRegions;
 import dev.ncn.worlddegrade.tracking.PlacementTracker;
@@ -29,7 +30,6 @@ import java.util.UUID;
 
 @EventBusSubscriber(modid = WorldDegrade.MOD_ID)
 public class DegradeJob {
-    private static final int CHUNKS_PER_TICK = 4;
     private static final int PROGRESS_INTERVAL = 200;
 
     private static DegradeJob active;
@@ -40,6 +40,9 @@ public class DegradeJob {
     private final List<RunWork> extraWork;
     private final List<DegradeEffect> effects;
     private final int totalChunks;
+    private final int chunksPerTick;
+    private final boolean placementTrackingEnabled;
+    private final boolean excavationTrackingEnabled;
     private final UUID operator;
     private final long runSeed;
     private int processedChunks;
@@ -54,6 +57,9 @@ public class DegradeJob {
         this.extraWork = new ArrayList<>(extraWork);
         this.effects = CompatManager.createEffects();
         this.totalChunks = chunkQueue.size();
+        this.chunksPerTick = WorldDegradeConfig.chunksPerTick();
+        this.placementTrackingEnabled = WorldDegradeConfig.placementTrackingEnabled();
+        this.excavationTrackingEnabled = WorldDegradeConfig.excavationTrackingEnabled();
         this.operator = operator;
         this.runSeed = level.getRandom().nextLong();
     }
@@ -118,7 +124,7 @@ public class DegradeJob {
     }
 
     private void tick(MinecraftServer server) {
-        for (int i = 0; i < CHUNKS_PER_TICK && !chunkQueue.isEmpty(); i++) {
+        for (int i = 0; i < chunksPerTick && !chunkQueue.isEmpty(); i++) {
             processChunk(chunkQueue.dequeueLong());
             processedChunks++;
             if (processedChunks % PROGRESS_INTERVAL == 0) {
@@ -153,10 +159,16 @@ public class DegradeJob {
         }
         it.unimi.dsi.fastutil.longs.LongOpenHashSet merged =
                 MarkedRegions.get(level).collectRegionPositions(level, chunk);
-        for (long tracked : trackedPositions) {
-            merged.add(tracked);
+        // Stored tracking data is still read above for index cleanup, but a disabled toggle
+        // excludes it from this run without purging it (the toggle can be flipped back on later).
+        if (placementTrackingEnabled) {
+            for (long tracked : trackedPositions) {
+                merged.add(tracked);
+            }
         }
-        it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap dugCeilings = collectDugCeilings(chunk);
+        it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap dugCeilings = excavationTrackingEnabled
+                ? collectDugCeilings(chunk)
+                : new it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap();
         merged.addAll(dugCeilings.keySet());
         excavatedCeilings += dugCeilings.size();
         if (merged.isEmpty()) {

@@ -43,6 +43,7 @@
   "chat.worlddegrade.busy": "A degradation or undo is already running — wait for it to finish.",
   "chat.worlddegrade.noundo": "Nothing to undo.",
   "chat.worlddegrade.no_permission": "You do not have permission to degrade structures.",
+  "chat.worlddegrade.dimension_disabled": "World Degrade is disabled in this dimension.",
   "chat.worlddegrade.undo.start": "Restoring %s blocks...",
   "chat.worlddegrade.undo.done": "Undo complete: %s blocks restored.",
   "item.worlddegrade.marker_wand": "Structure Marking Wand",
