@@ -2,6 +2,7 @@ package dev.ncn.worlddegrade.config;
 
 import com.mojang.logging.LogUtils;
 import dev.ncn.worlddegrade.WorldDegrade;
+import dev.ncn.worlddegrade.schedule.DegradeSchedule;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -22,6 +23,7 @@ public final class WorldDegradeConfig {
     private static final Logger LOGGER = LogUtils.getLogger();
 
     private static volatile Set<String> disabledDimensions = Set.of();
+    private static volatile DegradeSchedule schedule = new DegradeSchedule(List.of());
 
     private WorldDegradeConfig() {
     }
@@ -32,24 +34,27 @@ public final class WorldDegradeConfig {
 
     public static void onLoad(ModConfigEvent.Loading event) {
         if (event.getConfig().getSpec() == ServerConfig.SPEC) {
-            refreshDisabledDimensions();
+            refresh();
         }
     }
 
     public static void onReload(ModConfigEvent.Reloading event) {
         if (event.getConfig().getSpec() == ServerConfig.SPEC) {
-            refreshDisabledDimensions();
+            refresh();
         }
     }
 
     public static void onUnload(ModConfigEvent.Unloading event) {
         if (event.getConfig().getSpec() == ServerConfig.SPEC) {
             disabledDimensions = Set.of();
+            schedule = new DegradeSchedule(List.of());
         }
     }
 
-    private static void refreshDisabledDimensions() {
+    private static void refresh() {
         disabledDimensions = normalizeDimensions(ServerConfig.CONFIG.disabledDimensions.get());
+        schedule = DegradeSchedule.fromConfig(ServerConfig.CONFIG.passDelays.get(),
+                ServerConfig.CONFIG.passLevels.get());
     }
 
     /**
@@ -105,6 +110,23 @@ public final class WorldDegradeConfig {
 
     public static int chunksPerTick() {
         return ServerConfig.CONFIG.chunksPerTick.get();
+    }
+
+    public static boolean scheduleEnabled() {
+        return ServerConfig.CONFIG.enableSchedule.get();
+    }
+
+    /** The normalized, cached pass table. Refreshed on config load/reload. */
+    public static DegradeSchedule schedule() {
+        return schedule;
+    }
+
+    public static int releaseBlockThreshold() {
+        return ServerConfig.CONFIG.releaseBlockThreshold.get();
+    }
+
+    public static boolean schematicannonCountsAsInhabited() {
+        return ServerConfig.CONFIG.schematicannonCountsAsInhabited.get();
     }
 
     public static boolean burntBlockVariantsEnabled() {

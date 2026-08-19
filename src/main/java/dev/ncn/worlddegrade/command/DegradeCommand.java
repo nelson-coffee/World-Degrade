@@ -4,6 +4,7 @@ import com.mojang.brigadier.Command;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import dev.ncn.worlddegrade.WorldDegrade;
+import dev.ncn.worlddegrade.config.WorldDegradeConfig;
 import dev.ncn.worlddegrade.degrade.DegradeArea;
 import dev.ncn.worlddegrade.degrade.DegradeChances;
 import dev.ncn.worlddegrade.degrade.DegradeJob;
@@ -12,7 +13,13 @@ import dev.ncn.worlddegrade.degrade.DegradeResult;
 import dev.ncn.worlddegrade.degrade.DegradeService;
 import dev.ncn.worlddegrade.item.ModItems;
 import dev.ncn.worlddegrade.net.OpenDegradeGuiPayload;
+import dev.ncn.worlddegrade.schedule.DegradeSchedule;
+import dev.ncn.worlddegrade.schedule.ScheduleResult;
+import dev.ncn.worlddegrade.schedule.ScheduleService;
+import dev.ncn.worlddegrade.schedule.ScheduledDegradations;
 import dev.ncn.worlddegrade.undo.UndoManager;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
@@ -26,6 +33,9 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.UUID;
 
 @EventBusSubscriber(modid = WorldDegrade.MOD_ID)
@@ -64,6 +74,20 @@ public final class DegradeCommand {
                                                 .then(Commands.argument("toChunkZ", IntegerArgumentType.integer())
                                                         .then(Commands.argument("level", IntegerArgumentType.integer(1, 5))
                                                                 .executes(DegradeCommand::degradeChunks)))))))
+                .then(Commands.literal("schedule")
+                        .then(Commands.literal("add")
+                                .then(Commands.argument("fromChunkX", IntegerArgumentType.integer())
+                                        .then(Commands.argument("fromChunkZ", IntegerArgumentType.integer())
+                                                .then(Commands.argument("toChunkX", IntegerArgumentType.integer())
+                                                        .then(Commands.argument("toChunkZ", IntegerArgumentType.integer())
+                                                                .executes(DegradeCommand::scheduleArea))))))
+                        .then(Commands.literal("list")
+                                .executes(DegradeCommand::scheduleList))
+                        .then(Commands.literal("cancel")
+                                .then(Commands.literal("all")
+                                        .executes(DegradeCommand::scheduleCancelAll))
+                                .then(Commands.argument("id", IntegerArgumentType.integer(1))
+                                        .executes(DegradeCommand::scheduleCancel))))
                 .then(Commands.literal("playerblockset")
                         .executes(context -> {
                             ServerPlayer player = context.getSource().getPlayerOrException();
@@ -129,6 +153,100 @@ public final class DegradeCommand {
             source.sendSuccess(() -> Component.translatable("chat.worlddegrade.area.started",
                     job.totalChunks(), job.totalCompatTargets(), levelId), true);
         }
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private static int scheduleArea(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+        int fromX = IntegerArgumentType.getInteger(context, "fromChunkX");
+        int fromZ = IntegerArgumentType.getInteger(context, "fromChunkZ");
+        int toX = IntegerArgumentType.getInteger(context, "toChunkX");
+        int toZ = IntegerArgumentType.getInteger(context, "toChunkZ");
+        long requested = DegradeArea.chunkRectangleCount(fromX, fromZ, toX, toZ);
+        if (requested > ScheduleService.MAX_CHUNKS) {
+            source.sendFailure(Component.translatable("chat.worlddegrade.area.toobig",
+                    ScheduleService.MAX_CHUNKS, requested));
+            return 0;
+        }
+        LongOpenHashSet packed = DegradeArea.chunkRectangle(fromX, fromZ, toX, toZ).packedChunks();
+        ScheduleResult result = ScheduleService.schedule(source.getLevel(), packed);
+        if (!result.created()) {
+            source.sendFailure(Component.translatable(result.messageKey()));
+            return 0;
+        }
+        // The claimed count, not the requested one: chunks already covered by another schedule are
+        // dropped, so a rectangle overlapping an existing schedule covers fewer than it asked for.
+        source.sendSuccess(() -> Component.translatable("chat.worlddegrade.schedule.created",
+                result.id(), result.chunkCount()), true);
+        // Say this up front: without placement tracking there is nothing for a pass to degrade, and the
+        // only other sign is a WARN in the server log an hour later when the first pass finds nothing.
+        if (!WorldDegradeConfig.placementTrackingEnabled()) {
+            source.sendSuccess(() -> Component.translatable("chat.worlddegrade.schedule.untracked")
+                    .withStyle(ChatFormatting.YELLOW), false);
+        }
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private static int scheduleList(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+        ServerLevel level = source.getLevel();
+        DegradeSchedule schedule = WorldDegradeConfig.schedule();
+        int threshold = WorldDegradeConfig.releaseBlockThreshold();
+        List<ScheduledDegradations.Entry> entries = new ArrayList<>(ScheduleService.activeSchedules(level));
+        if (entries.isEmpty()) {
+            source.sendSuccess(() -> Component.translatable("chat.worlddegrade.schedule.list.empty"), false);
+            return Command.SINGLE_SUCCESS;
+        }
+        entries.sort(Comparator.comparingInt(ScheduledDegradations.Entry::id));
+        source.sendSuccess(() -> Component.translatable("chat.worlddegrade.schedule.list.header",
+                entries.size()), false);
+        // While the feature is off the clocks are frozen, so a countdown would be a lie — say so
+        // instead of printing a remaining time that is not ticking down.
+        boolean paused = !WorldDegradeConfig.scheduleEnabled() || schedule.isEmpty();
+        long now = level.getGameTime();
+        for (ScheduledDegradations.Entry entry : entries) {
+            String nextLevel = "-";
+            Component timing;
+            if (entry.nextPass() >= schedule.passes().size()) {
+                timing = Component.translatable("chat.worlddegrade.schedule.list.nopass");
+            } else {
+                DegradeSchedule.Pass pass = schedule.passes().get(entry.nextPass());
+                nextLevel = String.valueOf(pass.levelId());
+                if (paused) {
+                    timing = Component.translatable("chat.worlddegrade.schedule.list.paused");
+                } else {
+                    long ticksLeft = Math.max(0, entry.triggerGameTime() + pass.delayTicks() - now);
+                    long minutesLeft = (ticksLeft + DegradeSchedule.MINUTE_TICKS - 1) / DegradeSchedule.MINUTE_TICKS;
+                    timing = Component.translatable("chat.worlddegrade.schedule.list.due", minutesLeft);
+                }
+            }
+            // Only worth showing once something has actually been built there, and only when the
+            // inhabited check is switched on at all.
+            Component uses = threshold > 0 && entry.uses() > 0
+                    ? Component.translatable("chat.worlddegrade.schedule.list.uses", entry.uses(), threshold)
+                    : Component.empty();
+            String passLevel = nextLevel;
+            source.sendSuccess(() -> Component.translatable("chat.worlddegrade.schedule.list.entry",
+                    entry.id(), entry.chunkCount(), passLevel, timing, uses), false);
+        }
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private static int scheduleCancel(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+        int id = IntegerArgumentType.getInteger(context, "id");
+        if (!ScheduleService.cancel(source.getLevel(), id)) {
+            source.sendFailure(Component.translatable("chat.worlddegrade.schedule.notfound", id));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.translatable("chat.worlddegrade.schedule.cancelled", id), true);
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private static int scheduleCancelAll(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+        int removed = ScheduleService.cancelAll(source.getLevel());
+        source.sendSuccess(() -> Component.translatable("chat.worlddegrade.schedule.cancelled.all", removed), true);
         return Command.SINGLE_SUCCESS;
     }
 
