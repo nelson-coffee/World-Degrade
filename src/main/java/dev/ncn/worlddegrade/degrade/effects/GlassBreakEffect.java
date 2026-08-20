@@ -1,5 +1,7 @@
 package dev.ncn.worlddegrade.degrade.effects;
 
+import dev.ncn.worlddegrade.data.BlockCategories;
+import dev.ncn.worlddegrade.degrade.DecayExemptions;
 import dev.ncn.worlddegrade.degrade.DegradeContext;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.state.BlockState;
@@ -17,11 +19,15 @@ public class GlassBreakEffect implements DegradeEffect {
         for (long packed : ctx.positions()) {
             BlockPos pos = BlockPos.of(packed);
             BlockState state = ctx.state(pos);
-            if (!state.is(Tags.Blocks.GLASS_BLOCKS) && !state.is(Tags.Blocks.GLASS_PANES)) {
+            boolean builtin = state.is(Tags.Blocks.GLASS_BLOCKS) || state.is(Tags.Blocks.GLASS_PANES);
+            if (!BlockCategories.is(state, BlockCategories.Category.GLASS, builtin)) {
                 continue;
             }
             ctx.claim(pos);
             if (!enabled) {
+                continue;
+            }
+            if (DecayExemptions.isExempt(state)) {
                 continue;
             }
             if (!BrickWeatherEffect.isFullyWorn(ctx, pos, state)) {

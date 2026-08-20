@@ -1,0 +1,14 @@
+{
+  "replace": false,
+  "values": [
+    "#minecraft:planks",
+    "#minecraft:logs",
+    "#minecraft:wooden_stairs",
+    "#minecraft:wooden_slabs",
+    "#minecraft:wooden_fences",
+    "#minecraft:bamboo_blocks",
+    "minecraft:bamboo_mosaic",
+    "minecraft:mangrove_roots",
+    "minecraft:muddy_mangrove_roots"
+  ]
+}

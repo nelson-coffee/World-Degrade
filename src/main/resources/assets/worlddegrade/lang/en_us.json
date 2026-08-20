@@ -81,5 +81,10 @@
   "chat.worlddegrade.wand.cleared": "Selection cleared",
   "chat.worlddegrade.wand.marked": "Marked a %s region as player-made.",
   "chat.worlddegrade.wand.removed": "Removed a %s marked region (blocks un-marked).",
-  "chat.worlddegrade.wand.toobig": "Box too big — each edge must be at most %s blocks (yours is %s)."
+  "chat.worlddegrade.wand.toobig": "Box too big — each edge must be at most %s blocks (yours is %s).",
+  "chat.worlddegrade.generate.summary": "Found %s wear chains across %s namespaces.",
+  "chat.worlddegrade.generate.reload": "Wrote datapacks/worlddegrade-generated. Run /reload (or restart) to load the new chains.",
+  "chat.worlddegrade.generate.backup": "Re-running generate overwrites everything under worlddegrade-generated — back up manual edits in chains/ first.",
+  "chat.worlddegrade.generate.failed": "Failed to write the generated datapack: %s",
+  "pack.worlddegrade.examples": "World-Degrade Examples"
 }

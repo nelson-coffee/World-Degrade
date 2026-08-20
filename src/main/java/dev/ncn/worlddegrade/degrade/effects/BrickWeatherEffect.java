@@ -1,5 +1,6 @@
 package dev.ncn.worlddegrade.degrade.effects;
 
+import dev.ncn.worlddegrade.data.WearChains;
 import dev.ncn.worlddegrade.degrade.DegradeContext;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;
@@ -9,25 +10,12 @@ import net.minecraft.world.level.block.WeatheringCopper;
 import net.minecraft.world.level.block.state.BlockState;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-
 public class BrickWeatherEffect implements DegradeEffect {
     private final boolean enabled;
 
     public BrickWeatherEffect(boolean enabled) {
         this.enabled = enabled;
     }
-
-    private static final Map<Block, Block> WEAR = new HashMap<>();
-
-    private static final Set<Block> KNOWN = new HashSet<>();
-
-    private static final Map<Block, Float> RATE_SCALE = new HashMap<>();
-
-    private static final Map<Block, Integer> STEP_BONUS = new HashMap<>();
 
     private static final int[] STEP_BUDGET = {1, 1, 2, 3, 4};
 
@@ -139,9 +127,7 @@ public class BrickWeatherEffect implements DegradeEffect {
     }
 
     private static void wear(Block from, Block to) {
-        WEAR.put(from, to);
-        KNOWN.add(from);
-        KNOWN.add(to);
+        WearChains.registerBuiltin(from, to);
     }
 
     public static void addWear(Block from, Block to) {
@@ -154,24 +140,18 @@ public class BrickWeatherEffect implements DegradeEffect {
 
     public static void addWear(Block from, Block to, float rateScale, int stepBonus) {
         if (from != null && to != null && from != to && !from.defaultBlockState().isAir()) {
-            wear(from, to);
-            if (rateScale != 1.0f) {
-                RATE_SCALE.put(from, rateScale);
-            }
-            if (stepBonus > 0) {
-                STEP_BONUS.put(from, stepBonus);
-            }
+            WearChains.registerBuiltin(from, to, rateScale, stepBonus);
         }
     }
 
     @Nullable
     public static Block wearTarget(Block from) {
-        return WEAR.get(from);
+        return WearChains.wearTarget(from);
     }
 
     public static boolean isKnownMaterial(BlockState state) {
         Block block = state.getBlock();
-        return KNOWN.contains(block) || block instanceof WeatheringCopper
+        return WearChains.isKnown(block) || block instanceof WeatheringCopper
                 || weather(state) != null;
     }
 
@@ -205,6 +185,9 @@ public class BrickWeatherEffect implements DegradeEffect {
             if (!enabled) {
                 continue;
             }
+            if (dev.ncn.worlddegrade.degrade.DecayExemptions.isExempt(original)) {
+                continue;
+            }
             BlockState current = original;
             for (int step = 0, allowance = budget; step < allowance; step++) {
                 BlockState next = weather(current);
@@ -212,9 +195,9 @@ public class BrickWeatherEffect implements DegradeEffect {
                     break;
                 }
                 allowance = Math.max(allowance,
-                        step + 1 + STEP_BONUS.getOrDefault(current.getBlock(), 0));
+                        step + 1 + WearChains.stepBonus(current.getBlock()));
                 float rate = ctx.chances.brickWeatherChance()
-                        * RATE_SCALE.getOrDefault(current.getBlock(), 1.0f);
+                        * WearChains.rateScale(current.getBlock());
                 if (!ctx.roll(ctx.patchChance(pos, rate))) {
                     break;
                 }
@@ -228,13 +211,6 @@ public class BrickWeatherEffect implements DegradeEffect {
 
     @Nullable
     public static BlockState weather(BlockState state) {
-        Block block = state.getBlock();
-        Block worn = WEAR.get(block);
-        if (worn != null) {
-            return worn.withPropertiesOf(state);
-        }
-        return WeatheringCopper.getNext(block)
-                .map(next -> next.withPropertiesOf(state))
-                .orElse(null);
+        return WearChains.weather(state);
     }
 }

@@ -1,5 +1,7 @@
 package dev.ncn.worlddegrade.degrade.effects;
 
+import dev.ncn.worlddegrade.data.BlockCategories;
+import dev.ncn.worlddegrade.degrade.DecayExemptions;
 import dev.ncn.worlddegrade.degrade.DegradeContext;
 import dev.ncn.worlddegrade.degrade.StructureShape;
 import net.minecraft.core.BlockPos;
@@ -25,6 +27,9 @@ public class WoodRotEffect implements DegradeEffect {
             if (!enabled) {
                 continue;
             }
+            if (DecayExemptions.isExempt(state)) {
+                continue;
+            }
             if (!BrickWeatherEffect.isFullyWorn(ctx, pos, state)) {
                 continue;
             }
@@ -39,6 +44,10 @@ public class WoodRotEffect implements DegradeEffect {
     }
 
     public static boolean isWood(BlockState state) {
+        return BlockCategories.is(state, BlockCategories.Category.WOOD, isWoodBuiltin(state));
+    }
+
+    private static boolean isWoodBuiltin(BlockState state) {
         return state.is(BlockTags.PLANKS)
                 || state.is(BlockTags.LOGS)
                 || state.is(BlockTags.WOODEN_STAIRS)

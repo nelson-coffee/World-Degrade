@@ -1,7 +1,10 @@
 package dev.ncn.worlddegrade.degrade.effects;
 
+import dev.ncn.worlddegrade.data.BlockCategories;
+import dev.ncn.worlddegrade.degrade.DecayExemptions;
 import dev.ncn.worlddegrade.degrade.DegradeContext;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.FenceGateBlock;
 import net.minecraft.world.level.block.TrapDoorBlock;
@@ -20,9 +23,23 @@ public class DoorBreakEffect implements DegradeEffect {
         for (long packed : ctx.positions()) {
             BlockPos pos = BlockPos.of(packed);
             BlockState state = ctx.state(pos);
-            if (state.getBlock() instanceof DoorBlock) {
-                ctx.claim(pos);
-                if (!enabled || state.getValue(DoorBlock.HALF) != DoubleBlockHalf.LOWER) {
+            Block block = state.getBlock();
+            boolean builtin = block instanceof DoorBlock || block instanceof TrapDoorBlock
+                    || block instanceof FenceGateBlock;
+            if (!BlockCategories.is(state, BlockCategories.Category.DOOR, builtin)) {
+                continue;
+            }
+            ctx.claim(pos);
+            if (!enabled) {
+                continue;
+            }
+            if (DecayExemptions.isExempt(state)) {
+                continue;
+            }
+            // The two-tall removal only makes sense for real doors; tag-added modded blocks and the
+            // single-block trapdoor/fence-gate family fall through to a plain removal.
+            if (block instanceof DoorBlock) {
+                if (state.getValue(DoorBlock.HALF) != DoubleBlockHalf.LOWER) {
                     continue;
                 }
                 if (ctx.roll(ctx.chances.doorBreakChance())) {
@@ -32,9 +49,8 @@ public class DoorBreakEffect implements DegradeEffect {
                     }
                     ctx.removeBlock(pos);
                 }
-            } else if (state.getBlock() instanceof TrapDoorBlock || state.getBlock() instanceof FenceGateBlock) {
-                ctx.claim(pos);
-                if (enabled && ctx.roll(ctx.chances.doorBreakChance())) {
+            } else {
+                if (ctx.roll(ctx.chances.doorBreakChance())) {
                     ctx.removeBlock(pos);
                 }
             }

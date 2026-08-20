@@ -15,8 +15,10 @@ public final class DecayExemptions {
     }
 
     public static boolean isExempt(BlockState state) {
-        return isOre(state) || isUntouchedNature(state) || isIndestructible(state)
+        boolean builtin = isOre(state) || isUntouchedNature(state) || isIndestructible(state)
                 || isCreativeSupply(state);
+        return dev.ncn.worlddegrade.data.BlockCategories.is(
+                state, dev.ncn.worlddegrade.data.BlockCategories.Category.EXEMPT, builtin);
     }
 
     public static boolean isOre(BlockState state) {

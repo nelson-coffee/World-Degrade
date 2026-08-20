@@ -1,0 +1,9 @@
+{
+  "type": "worlddegrade:wear_chain",
+  "chain": [
+    "minecraft:copper_block",
+    "minecraft:exposed_copper",
+    "minecraft:weathered_copper",
+    "minecraft:oxidized_copper"
+  ]
+}

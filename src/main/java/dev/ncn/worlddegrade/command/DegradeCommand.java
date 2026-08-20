@@ -6,6 +6,7 @@ import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import dev.ncn.worlddegrade.WorldDegrade;
 import dev.ncn.worlddegrade.config.WorldDegradeConfig;
+import dev.ncn.worlddegrade.data.DatapackGenerator;
 import dev.ncn.worlddegrade.degrade.DegradeArea;
 import dev.ncn.worlddegrade.degrade.DegradeChances;
 import dev.ncn.worlddegrade.degrade.DegradeJob;
@@ -34,6 +35,7 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -99,6 +101,8 @@ public final class DegradeCommand {
                                                                 .then(Commands.argument("expireClaims", BoolArgumentType.bool())
                                                                         .executes(context -> opacSimulate(context,
                                                                                 BoolArgumentType.getBool(context, "expireClaims"))))))))))
+                .then(Commands.literal("generate")
+                        .executes(DegradeCommand::generateDatapack))
                 .then(Commands.literal("playerblockset")
                         .executes(context -> {
                             ServerPlayer player = context.getSource().getPlayerOrException();
@@ -110,6 +114,28 @@ public final class DegradeCommand {
                                     Component.translatable("chat.worlddegrade.wand.given"));
                             return Command.SINGLE_SUCCESS;
                         })));
+    }
+
+    /**
+     * Scans the block registry and writes a datapack of auto-detected wear chains into the world's
+     * {@code datapacks/} folder. The active {@code chains/} tree is picked up on the next
+     * {@code /reload} or restart; {@code chains_reference/} is written for reference only.
+     */
+    private static int generateDatapack(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+        try {
+            DatapackGenerator.Summary summary = DatapackGenerator.generate(source.getServer());
+            source.sendSuccess(() -> Component.translatable("chat.worlddegrade.generate.summary",
+                    summary.chains(), summary.namespaces()), true);
+            source.sendSuccess(() -> Component.translatable("chat.worlddegrade.generate.reload")
+                    .withStyle(ChatFormatting.GRAY), false);
+            source.sendSuccess(() -> Component.translatable("chat.worlddegrade.generate.backup")
+                    .withStyle(ChatFormatting.YELLOW), false);
+            return Command.SINGLE_SUCCESS;
+        } catch (IOException e) {
+            source.sendFailure(Component.translatable("chat.worlddegrade.generate.failed", e.getMessage()));
+            return 0;
+        }
     }
 
     private static int degradeArea(CommandContext<CommandSourceStack> context) {

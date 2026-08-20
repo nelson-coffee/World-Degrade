@@ -30,6 +30,74 @@ But thats just for vanilla Minecraft if you have any of the following mods insta
 
 Any blocks not recognised my the mod will just get destroyed at a percentage chance.
 
+## Tags, datapacks and the generate command
+
+You no longer need a dedicated compat module for every mod. Block categorisation and wear chains are layered, so the built-in hardcoded defaults are always the fallback and nothing breaks if you never touch any of this.
+
+### Block tags (which effect applies)
+
+Tag a block with one of the `#worlddegrade:` block tags and it becomes eligible for that effect — no datapack required. If a tagged block has no wear chain, the effect is destruction (block → air), e.g. glass shattering or wood rotting.
+
+- `#worlddegrade:wood_rot`
+- `#worlddegrade:glass_break`
+- `#worlddegrade:door_break`
+- `#worlddegrade:masonry_decay`
+- `#worlddegrade:light_snuff`
+- `#worlddegrade:exempt` (never degrades)
+
+**Which tags are easy to see:** `wood_rot` and `glass_break` end in destruction, which is also what an *un-categorised* block does by default, so the visible result is the same either way — they mostly change *which effect owns* the block, not the outcome. The clearly observable ones are `exempt` (tag a block that would normally crumble and it now survives untouched) and `masonry_decay` / wear chains (the block steps through intermediate variants instead of vanishing). Use those when you want to confirm the system is doing something.
+
+### Datapack chains
+
+Drop JSON into `data/<namespace>/chains/` in any datapack. Three entry types are understood:
+
+```json
+{ "type": "worlddegrade:wear_chain",
+  "chain": ["minecraft:copper_block", "minecraft:exposed_copper", "minecraft:weathered_copper", "minecraft:oxidized_copper"] }
+```
+```json
+{ "type": "worlddegrade:chain_entry", "from": "minecraft:waxed_copper_block", "into": "minecraft:copper_block" }
+```
+```json
+{ "type": "worlddegrade:block_category", "category": "wood",
+  "add": ["somemod:custom_plank"], "remove": ["minecraft:crimson_planks"] }
+```
+
+Overrides are **per-chain**: a datapack chain for `cobblestone` replaces only cobblestone's built-in link; everything it doesn't mention keeps the built-in default. Lookup order per block is **datapack → built-in → tag-based destruction**. Everything under `chains/` (including subfolders) is loaded recursively.
+
+### Loading the bundled examples
+
+The repo carries an example datapack (`copper_block`, `waxed_copper_block`, `exempt_stone_bricks`, `wood_category`). It is a **development/testing aid only — it is not offered to normal players.** The pack finder is skipped in a production (shipped) environment, so players never see it in `/datapack list`; it only appears when running the mod from a dev environment (`runClient`/`runServer`). Even there it is **not active by default** — you switch it on per world:
+
+- **Existing world (dev run):** run `/datapack enable "mod/worlddegrade:example_datapack"`, then `/reload`.
+- **New world (dev run):** on the create-world screen open **Data Packs**, drag *World-Degrade Examples* to the left (Selected), then create the world.
+- **Check it's on:** `/datapack list` should list it under *Available/Enabled*.
+
+Normal players don't need any of this — the built-in defaults and `#worlddegrade:` tags already work out of the box. If you *do* want these mappings in a shipped world, copy the JSON from `src/main/resources/example_datapack/data/worlddegrade/chains/` into your own world datapack's `chains/` folder.
+
+Once enabled you can watch two clearly visible effects:
+
+- **Waxed copper starts degrading** (`waxed_copper_block → copper_block → exposed → weathered → oxidized_copper`). Waxed copper never weathers on its own — it only moves once this pack (or your own chain for it) is loaded.
+- **Stone bricks stop degrading.** Left alone, stone bricks visibly wear `stone_bricks → cracked_stone_bricks → cobblestone → mossy_cobblestone`; the `exempt` example freezes them so you can watch un-exempt stone bricks crack next to exempt ones that stay pristine.
+
+The exempt example targets **stone bricks** on purpose: they have a real, visible wear chain, so exemption is easy to observe. `exempt` now stops wear chains too (not just the slow break-to-air step), so an exempt block genuinely never degrades.
+
+To customise, copy the JSON out of the pack into any world datapack's `chains/` folder and edit it there.
+
+### `/worlddegrade generate`
+
+Run it once after loading your world with your modpack:
+
+1. It scans the whole block registry and applies naming heuristics (`polished_/smooth_/cut_/waxed_ → base`, `chiseled_X → cracked_X`, `X → cracked_X/cobbled_X/mossy_X`, same-namespace only).
+2. It writes a datapack to `<world>/datapacks/worlddegrade-generated/`, **one file per namespace subfolder** so a big modpack stays browsable:
+   - `data/worlddegrade/chains/<modid>/<block>.json` — active auto-detected modded chains (loaded on the next `/reload` or restart).
+   - `data/worlddegrade/chains_reference/<modid>/<block>.json` — the built-in vanilla chains, written for reference only (never loaded). Copy one into `chains/` to tweak it.
+3. It logs a summary like `Found 247 wear chains across 12 namespaces`.
+
+**One file vs. a longer chain:** detection gives each block a single target, so the links are stitched into chains. A file is written per *chain head* — a block that nothing else degrades into — named after that head, and its `chain` array is the full walk from the head, following each block's target until the trail ends. So you get a longer chain when the detected links connect transitively (e.g. `chiseled_x → cracked_x → x` becomes one file, `chiseled_x.json`, with all three), and a short two-block file when a head's target has no onward link of its own. A block that is only ever a *target* never gets its own file — it appears inside its predecessor's chain.
+
+Re-running overwrites the whole `worlddegrade-generated/` tree, so back up any manual edits in `chains/` first.
+
 ## Progressive degradation (schedule)
 
 Instead of ruining an area in one shot, you can schedule it to fall apart in stages over time — lightly weathered first, then damaged, then collapsed. This is opt-in and off by default.

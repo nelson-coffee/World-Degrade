@@ -1,5 +1,6 @@
 package dev.ncn.worlddegrade.degrade.effects;
 
+import dev.ncn.worlddegrade.data.BlockCategories;
 import dev.ncn.worlddegrade.degrade.DecayExemptions;
 import dev.ncn.worlddegrade.degrade.DegradeContext;
 import dev.ncn.worlddegrade.degrade.StructureShape;
@@ -92,7 +93,7 @@ public class VanillaDecayEffect implements DegradeEffect {
         if (isMechanism(state)) {
             return Family.MECHANISM;
         }
-        if (isMasonry(state)) {
+        if (BlockCategories.is(state, BlockCategories.Category.MASONRY, isMasonry(state))) {
             return Family.MASONRY;
         }
         return null;

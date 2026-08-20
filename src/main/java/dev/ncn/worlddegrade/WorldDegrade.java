@@ -18,6 +18,7 @@ public class WorldDegrade {
         dev.ncn.worlddegrade.block.ModBlocks.BLOCKS.register(modEventBus);
         dev.ncn.worlddegrade.item.ModItems.ITEMS.register(modEventBus);
         modEventBus.addListener((FMLCommonSetupEvent event) -> event.enqueueWork(CompatManager::init));
+        modEventBus.addListener(dev.ncn.worlddegrade.data.ExamplePackFinder::onAddPackFinders);
         modEventBus.addListener(WorldDegradeConfig::onLoad);
         modEventBus.addListener(WorldDegradeConfig::onReload);
         modEventBus.addListener(WorldDegradeConfig::onUnload);

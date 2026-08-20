@@ -1,0 +1,5 @@
+{
+  "type": "worlddegrade:chain_entry",
+  "from": "minecraft:waxed_copper_block",
+  "into": "minecraft:copper_block"
+}

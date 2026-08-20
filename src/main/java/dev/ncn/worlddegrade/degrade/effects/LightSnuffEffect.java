@@ -1,5 +1,7 @@
 package dev.ncn.worlddegrade.degrade.effects;
 
+import dev.ncn.worlddegrade.data.BlockCategories;
+import dev.ncn.worlddegrade.degrade.DecayExemptions;
 import dev.ncn.worlddegrade.degrade.DegradeContext;
 import net.minecraft.core.BlockPos;
 import dev.ncn.worlddegrade.block.BurntLanternBlock;
@@ -30,13 +32,17 @@ public class LightSnuffEffect implements DegradeEffect {
             BlockPos pos = BlockPos.of(packed);
             BlockState state = ctx.state(pos);
             Block block = state.getBlock();
-            if (block instanceof CampfireBlock || block instanceof TorchBlock
+            boolean builtin = block instanceof CampfireBlock || block instanceof TorchBlock
                     || block instanceof WallTorchBlock || block instanceof LanternBlock
                     || block instanceof BurntTorchBlock || block instanceof BurntWallTorchBlock
-                    || block instanceof BurntLanternBlock) {
+                    || block instanceof BurntLanternBlock;
+            if (BlockCategories.is(state, BlockCategories.Category.LIGHT, builtin)) {
                 ctx.claim(pos);
             }
             if (!enabled) {
+                continue;
+            }
+            if (DecayExemptions.isExempt(state)) {
                 continue;
             }
             if (block instanceof CampfireBlock) {
