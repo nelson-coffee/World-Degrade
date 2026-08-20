@@ -69,6 +69,9 @@ public class FilmScratchEffect implements DegradeEffect {
         }
         for (long packed : ctx.positions()) {
             BlockPos pos = BlockPos.of(packed);
+            if (ctx.isExempt(pos)) {
+                continue;
+            }
             if (ctx.blockEntity(pos) == null) {
                 continue;
             }

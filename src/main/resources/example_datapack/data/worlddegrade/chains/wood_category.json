@@ -1,6 +1,0 @@
-{
-  "type": "worlddegrade:block_category",
-  "category": "wood",
-  "add": ["somemod:custom_plank"],
-  "remove": ["minecraft:crimson_planks"]
-}

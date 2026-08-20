@@ -1,4 +1,10 @@
 {
   "replace": false,
-  "values": []
+  "values": [
+    { "id": "#create:tracks", "required": false },
+    { "id": "create:large_bogey", "required": false },
+    { "id": "create:small_bogey", "required": false },
+    { "id": "create:track_station", "required": false },
+    { "id": "create:track_signal", "required": false }
+  ]
 }

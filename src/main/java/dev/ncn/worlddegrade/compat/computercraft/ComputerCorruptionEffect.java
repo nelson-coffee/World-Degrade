@@ -35,6 +35,9 @@ public class ComputerCorruptionEffect implements DegradeEffect {
 
         for (long packed : ctx.positions()) {
             BlockPos pos = BlockPos.of(packed);
+            if (ctx.isExempt(pos)) {
+                continue;
+            }
             BlockEntity blockEntity = ctx.blockEntity(pos);
             if (blockEntity == null) {
                 continue;

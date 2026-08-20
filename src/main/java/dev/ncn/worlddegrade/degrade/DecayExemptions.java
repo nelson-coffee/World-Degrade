@@ -14,11 +14,58 @@ public final class DecayExemptions {
     private DecayExemptions() {
     }
 
-    public static boolean isExempt(BlockState state) {
-        boolean builtin = isOre(state) || isUntouchedNature(state) || isIndestructible(state)
+    private static boolean builtinExempt(BlockState state) {
+        return isOre(state) || isUntouchedNature(state) || isIndestructible(state)
                 || isCreativeSupply(state);
+    }
+
+    public static boolean isExempt(BlockState state) {
         return dev.ncn.worlddegrade.data.BlockCategories.is(
-                state, dev.ncn.worlddegrade.data.BlockCategories.Category.EXEMPT, builtin);
+                state, dev.ncn.worlddegrade.data.BlockCategories.Category.EXEMPT, builtinExempt(state));
+    }
+
+    /** Why a block is (or is not) exempt — for diagnostic tooling like {@code /degrade inspect}. */
+    public enum Reason {
+        NOT_EXEMPT,
+        DATAPACK_REMOVE,
+        DATAPACK_ADD,
+        TAG,
+        BUILTIN_ORE,
+        BUILTIN_NATURE,
+        BUILTIN_INDESTRUCTIBLE,
+        BUILTIN_CREATIVE_SUPPLY
+    }
+
+    /**
+     * Explains the exempt verdict for {@code state}, resolving the same precedence {@link #isExempt}
+     * applies (datapack remove &gt; datapack add &gt; tag &gt; builtin) and, for a builtin match, which
+     * hardcoded rule fired. Create track infrastructure is exempt through the tag alone
+     * ({@code #worlddegrade:exempt} nests {@code #create:tracks}, plus bogey ids), so it reports
+     * {@link Reason#TAG}. An admin re-enables decay with a {@code block_category} remove.
+     */
+    public static Reason explain(BlockState state) {
+        var source = dev.ncn.worlddegrade.data.BlockCategories.source(
+                state, dev.ncn.worlddegrade.data.BlockCategories.Category.EXEMPT, builtinExempt(state));
+        return switch (source) {
+            case DATAPACK_REMOVE -> Reason.DATAPACK_REMOVE;
+            case DATAPACK_ADD -> Reason.DATAPACK_ADD;
+            case TAG -> Reason.TAG;
+            case BUILTIN -> builtinReason(state);
+            case NONE -> Reason.NOT_EXEMPT;
+        };
+    }
+
+    private static Reason builtinReason(BlockState state) {
+        if (isOre(state)) {
+            return Reason.BUILTIN_ORE;
+        }
+        if (isUntouchedNature(state)) {
+            return Reason.BUILTIN_NATURE;
+        }
+        if (isIndestructible(state)) {
+            return Reason.BUILTIN_INDESTRUCTIBLE;
+        }
+        return Reason.BUILTIN_CREATIVE_SUPPLY;
     }
 
     public static boolean isOre(BlockState state) {

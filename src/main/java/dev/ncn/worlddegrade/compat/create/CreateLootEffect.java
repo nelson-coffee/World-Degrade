@@ -16,6 +16,9 @@ public class CreateLootEffect implements DegradeEffect {
             if (!(ctx.blockEntity(pos) instanceof ItemVaultBlockEntity vault)) {
                 continue;
             }
+            if (ctx.isExempt(pos)) {
+                continue;
+            }
             if (!ctx.claimLoot(pos)) {
                 continue;
             }

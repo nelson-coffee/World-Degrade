@@ -35,6 +35,9 @@ public class ContainerLootEffect implements DegradeEffect {
             if (!enabled) {
                 continue;
             }
+            if (ctx.isExempt(pos)) {
+                continue;
+            }
             if (!claimInventory(ctx, pos) || !ctx.claimLoot(pos)) {
                 continue;
             }
@@ -90,6 +93,9 @@ public class ContainerLootEffect implements DegradeEffect {
 
     public static void lootContainer(DegradeContext ctx, BlockPos pos,
                                      RandomizableContainerBlockEntity container) {
+        if (ctx.isExempt(pos)) {
+            return;
+        }
         if (!ctx.claimLoot(pos)) {
             return;
         }

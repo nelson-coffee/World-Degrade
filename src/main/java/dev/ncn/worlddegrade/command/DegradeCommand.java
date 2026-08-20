@@ -7,6 +7,7 @@ import com.mojang.brigadier.context.CommandContext;
 import dev.ncn.worlddegrade.WorldDegrade;
 import dev.ncn.worlddegrade.config.WorldDegradeConfig;
 import dev.ncn.worlddegrade.data.DatapackGenerator;
+import dev.ncn.worlddegrade.degrade.DecayExemptions;
 import dev.ncn.worlddegrade.degrade.DegradeArea;
 import dev.ncn.worlddegrade.degrade.DegradeChances;
 import dev.ncn.worlddegrade.degrade.DegradeJob;
@@ -26,10 +27,14 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
@@ -65,6 +70,11 @@ public final class DegradeCommand {
                 })
                 .then(Commands.literal("undo")
                         .executes(context -> UndoManager.undo(context.getSource())))
+                .then(Commands.literal("inspect")
+                        .executes(DegradeCommand::inspectLookAt)
+                        .then(Commands.argument("pos", BlockPosArgument.blockPos())
+                                .executes(context -> inspectPos(context.getSource(),
+                                        BlockPosArgument.getBlockPos(context, "pos")))))
                 .then(Commands.literal("area")
                         .then(Commands.argument("from", BlockPosArgument.blockPos())
                                 .then(Commands.argument("to", BlockPosArgument.blockPos())
@@ -331,6 +341,60 @@ public final class DegradeCommand {
                     .withStyle(ChatFormatting.YELLOW), false);
         }
         return Command.SINGLE_SUCCESS;
+    }
+
+    /**
+     * QA helper: reports whether the block the player is looking at is exempt from degradation, and
+     * which rule decided it (datapack override, tag, or a specific built-in). Turns "run a full degrade
+     * pass and check every block" into a one-shot point-and-check, and makes the built-in Create
+     * track/bogey exemption visible even for blocks the {@code #worlddegrade:exempt} tag does not list.
+     */
+    private static int inspectLookAt(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+        ServerPlayer player = source.getPlayer();
+        if (player == null) {
+            source.sendFailure(Component.translatable("chat.worlddegrade.inspect.notarget"));
+            return 0;
+        }
+        HitResult hit = player.pick(20.0, 1.0f, false);
+        if (hit.getType() != HitResult.Type.BLOCK) {
+            source.sendFailure(Component.translatable("chat.worlddegrade.inspect.notarget"));
+            return 0;
+        }
+        return inspectPos(source, ((BlockHitResult) hit).getBlockPos());
+    }
+
+    private static int inspectPos(CommandSourceStack source, BlockPos pos) {
+        ServerLevel level = source.getLevel();
+        BlockState state = level.getBlockState(pos);
+        DecayExemptions.Reason reason = DecayExemptions.explain(state);
+        String id = BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString();
+        String where = pos.getX() + ", " + pos.getY() + ", " + pos.getZ();
+        if (reason == DecayExemptions.Reason.NOT_EXEMPT) {
+            source.sendSuccess(() -> Component.translatable("chat.worlddegrade.inspect.no", id, where)
+                    .withStyle(ChatFormatting.YELLOW), false);
+        } else if (reason == DecayExemptions.Reason.DATAPACK_REMOVE) {
+            source.sendSuccess(() -> Component.translatable("chat.worlddegrade.inspect.removed", id, where)
+                    .withStyle(ChatFormatting.YELLOW), false);
+        } else {
+            Component reasonText = Component.translatable(inspectReasonKey(reason));
+            source.sendSuccess(() -> Component.translatable("chat.worlddegrade.inspect.yes", id, where, reasonText)
+                    .withStyle(ChatFormatting.GREEN), false);
+        }
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private static String inspectReasonKey(DecayExemptions.Reason reason) {
+        return switch (reason) {
+            case NOT_EXEMPT -> "chat.worlddegrade.inspect.reason.none";
+            case DATAPACK_REMOVE -> "chat.worlddegrade.inspect.reason.datapack_remove";
+            case DATAPACK_ADD -> "chat.worlddegrade.inspect.reason.datapack_add";
+            case TAG -> "chat.worlddegrade.inspect.reason.tag";
+            case BUILTIN_ORE -> "chat.worlddegrade.inspect.reason.ore";
+            case BUILTIN_NATURE -> "chat.worlddegrade.inspect.reason.nature";
+            case BUILTIN_INDESTRUCTIBLE -> "chat.worlddegrade.inspect.reason.indestructible";
+            case BUILTIN_CREATIVE_SUPPLY -> "chat.worlddegrade.inspect.reason.creative_supply";
+        };
     }
 
     private DegradeCommand() {

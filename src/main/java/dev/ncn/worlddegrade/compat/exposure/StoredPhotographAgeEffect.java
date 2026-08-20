@@ -14,6 +14,9 @@ public class StoredPhotographAgeEffect implements DegradeEffect {
     public void apply(DegradeContext ctx) {
         for (long packed : ctx.positions()) {
             BlockPos pos = BlockPos.of(packed);
+            if (ctx.isExempt(pos)) {
+                continue;
+            }
             if (ctx.blockEntity(pos) == null) {
                 continue;
             }

@@ -89,6 +89,9 @@ public class StructuralCollapseEffect implements DegradeEffect {
         if (!ctx.roll(Mth.clamp((threshold - field) / ROOF_SOFTNESS + 0.5f, 0.0f, 1.0f))) {
             return;
         }
+        if (DecayExemptions.isExempt(state)) {
+            return;
+        }
         ctx.removeBlock(pos);
         removed.add(pos.asLong());
         if (ctx.roll(DEBRIS_CHANCE)) {
@@ -116,12 +119,9 @@ public class StructuralCollapseEffect implements DegradeEffect {
                 break;
             }
             BlockPos at = cursor.immutable();
-            if (DecayExemptions.isOre(state)) {
-                if (!ctx.scatterDebrisOrKeep(at, state, FLOOR_SEARCH_DEPTH)) {
-                    break;
-                }
-                ctx.removeBlock(at);
-                removed.add(at.asLong());
+            if (DecayExemptions.isExempt(state)) {
+                // Exempt blocks (incl. ores) are kept fully in place. Route around them so the
+                // column keeps caving above rather than treating them as a hard support wall.
                 cursor.move(0, 1, 0);
                 continue;
             }
@@ -157,7 +157,7 @@ public class StructuralCollapseEffect implements DegradeEffect {
         BlockPos.MutableBlockPos cursor = pos.mutable();
         for (int i = 0; i < depth; i++) {
             BlockState state = ctx.state(cursor);
-            if (!BrickWeatherEffect.isFullyWorn(ctx, pos, state)) {
+            if (!BrickWeatherEffect.isFullyWorn(ctx, pos, state) || DecayExemptions.isExempt(state)) {
                 break;
             }
             BlockPos at = cursor.immutable();
@@ -175,7 +175,7 @@ public class StructuralCollapseEffect implements DegradeEffect {
             return;
         }
         BlockState state = ctx.state(pos);
-        if (!BrickWeatherEffect.isFullyWorn(ctx, pos, state)) {
+        if (!BrickWeatherEffect.isFullyWorn(ctx, pos, state) || DecayExemptions.isExempt(state)) {
             return;
         }
         if (!ctx.roll(ctx.patchChance(pos, chance))) {
@@ -221,7 +221,7 @@ public class StructuralCollapseEffect implements DegradeEffect {
                     continue;
                 }
                 BlockState state = ctx.state(neighbor);
-                if (state.isAir() || !isOrphaned(ctx, neighbor, state)) {
+                if (state.isAir() || DecayExemptions.isExempt(state) || !isOrphaned(ctx, neighbor, state)) {
                     continue;
                 }
                 ctx.removeBlock(neighbor);

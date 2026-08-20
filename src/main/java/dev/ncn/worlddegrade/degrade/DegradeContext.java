@@ -134,8 +134,17 @@ public class DegradeContext {
         return state.getDestroySpeed(level, pos) < 0;
     }
 
+    // Central exempt gate: a block tagged/flagged exempt is kept untouched by every effect —
+    // no remove, no state change. The mutating methods below route through this, so it is the
+    // single chokepoint for block-level changes. Effects that mutate a placed block's contents or
+    // block-entity state directly (loot, computer files, stored photographs, copycat material) do
+    // not pass through those methods, so they call this helper themselves to honour the same contract.
+    public boolean isExempt(BlockPos pos) {
+        return DecayExemptions.isExempt(state(pos));
+    }
+
     public void removeBlock(BlockPos pos) {
-        if (isUnbreakable(pos)) {
+        if (isUnbreakable(pos) || isExempt(pos)) {
             return;
         }
         if (removalSink != null) {
@@ -151,7 +160,7 @@ public class DegradeContext {
     }
 
     public void replaceBlock(BlockPos pos, BlockState newState) {
-        if (isUnbreakable(pos)) {
+        if (isUnbreakable(pos) || isExempt(pos)) {
             return;
         }
         undo.record(level, pos);
@@ -160,7 +169,7 @@ public class DegradeContext {
     }
 
     public void replaceBlockPreservingEntity(BlockPos pos, BlockState newState) {
-        if (isUnbreakable(pos)) {
+        if (isUnbreakable(pos) || isExempt(pos)) {
             return;
         }
         undo.record(level, pos);
@@ -183,7 +192,7 @@ public class DegradeContext {
     }
 
     public void replaceBlockDiscardingEntity(BlockPos pos, BlockState newState) {
-        if (isUnbreakable(pos)) {
+        if (isUnbreakable(pos) || isExempt(pos)) {
             return;
         }
         undo.record(level, pos);
@@ -213,7 +222,7 @@ public class DegradeContext {
     }
 
     public void removeBlockAndWipeContents(BlockPos pos) {
-        if (isUnbreakable(pos)) {
+        if (isUnbreakable(pos) || isExempt(pos)) {
             return;
         }
         if (removalSink != null) {

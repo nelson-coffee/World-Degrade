@@ -17,6 +17,8 @@ repositories {
         url = 'https://api.modrinth.com/maven'             // Waystones, Balm
         content { includeGroup 'maven.modrinth' }
     }
+    maven { url = "https://maven.blamejared.com" } // JEI, Vazkii's Mods
+    maven { url = "https://api.modrinth.com/maven" } // Jade
 }
 
 def sableCompanionDir = layout.buildDirectory.dir('sable-companion')
@@ -46,6 +48,9 @@ dependencies {
         include '*.jar'
         builtBy 'extractSableCompanion'
     }
+
+    runtimeOnly("mezz.jei:jei-${minecraft_version}-neoforge:${jei_version}")
+    runtimeOnly("maven.modrinth:jade:${jade_version}")
 
     testImplementation 'org.junit.jupiter:junit-jupiter:5.11.0'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'

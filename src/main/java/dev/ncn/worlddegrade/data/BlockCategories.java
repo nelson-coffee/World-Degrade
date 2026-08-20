@@ -77,22 +77,49 @@ public final class BlockCategories {
         ADDED.get(category).remove(block);
     }
 
+    /** Which layer decided a block's category membership, in priority order. */
+    public enum Source {
+        /** A datapack {@code remove} override; forces the block out of the category. */
+        DATAPACK_REMOVE,
+        /** A datapack {@code add} override; forces the block into the category. */
+        DATAPACK_ADD,
+        /** The {@code #worlddegrade:} block tag lists the block. */
+        TAG,
+        /** The effect's own hardcoded membership check. */
+        BUILTIN,
+        /** Nothing matched; the block is not in the category. */
+        NONE
+    }
+
     /**
      * @param builtin the effect's own hardcoded membership check, used only when no override or tag
      *                decides the block. Passing it in keeps each effect's bespoke logic where it lives
      *                instead of duplicating it here.
      */
     public static boolean is(BlockState state, Category category, boolean builtin) {
+        Source source = source(state, category, builtin);
+        return source == Source.DATAPACK_ADD || source == Source.TAG || source == Source.BUILTIN;
+    }
+
+    /**
+     * Reports which layer decides {@code state}'s membership in {@code category}, following the same
+     * priority as {@link #is}. Diagnostic tooling uses this to explain a verdict without re-deriving
+     * the precedence rules.
+     */
+    public static Source source(BlockState state, Category category, boolean builtin) {
         Block block = state.getBlock();
         if (REMOVED.get(category).contains(block)) {
-            return false;
+            return Source.DATAPACK_REMOVE;
         }
         if (ADDED.get(category).contains(block)) {
-            return true;
+            return Source.DATAPACK_ADD;
         }
         if (state.is(category.tag())) {
-            return true;
+            return Source.TAG;
         }
-        return builtin;
+        if (builtin) {
+            return Source.BUILTIN;
+        }
+        return Source.NONE;
     }
 }

@@ -47,6 +47,9 @@ final class CopycatDecay {
     }
 
     private static void setMaterial(DegradeContext ctx, BlockPos pos, BlockState worn) {
+        if (ctx.isExempt(pos)) {
+            return;
+        }
         if (!(ctx.blockEntity(pos) instanceof CopycatBlockEntity copycat)) {
             return;
         }
