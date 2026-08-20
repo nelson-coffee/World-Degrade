@@ -89,7 +89,9 @@ public class StructuralCollapseEffect implements DegradeEffect {
         if (!ctx.roll(Mth.clamp((threshold - field) / ROOF_SOFTNESS + 0.5f, 0.0f, 1.0f))) {
             return;
         }
-        ctx.removeBlock(pos);
+        if (!ctx.removeBlock(pos)) {
+            return;
+        }
         removed.add(pos.asLong());
         if (ctx.roll(DEBRIS_CHANCE)) {
             ctx.scatterDebris(pos, state, FLOOR_SEARCH_DEPTH);
@@ -125,7 +127,9 @@ public class StructuralCollapseEffect implements DegradeEffect {
                 cursor.move(0, 1, 0);
                 continue;
             }
-            ctx.removeBlock(at);
+            if (!ctx.removeBlock(at)) {
+                break;
+            }
             removed.add(at.asLong());
             if (ctx.roll(CAVE_IN_DEBRIS_CHANCE)) {
                 ctx.scatterDebris(at, state, FLOOR_SEARCH_DEPTH);
@@ -161,7 +165,9 @@ public class StructuralCollapseEffect implements DegradeEffect {
                 break;
             }
             BlockPos at = cursor.immutable();
-            ctx.removeBlock(at);
+            if (!ctx.removeBlock(at)) {
+                break;
+            }
             removed.add(at.asLong());
             if (ctx.roll(RUBBLE_CHANCE)) {
                 pileRubble(ctx, at, state);
@@ -181,8 +187,9 @@ public class StructuralCollapseEffect implements DegradeEffect {
         if (!ctx.roll(ctx.patchChance(pos, chance))) {
             return;
         }
-        ctx.removeBlock(pos);
-        removed.add(pos.asLong());
+        if (ctx.removeBlock(pos)) {
+            removed.add(pos.asLong());
+        }
     }
 
     private void pileRubble(DegradeContext ctx, BlockPos from, BlockState state) {
@@ -224,7 +231,9 @@ public class StructuralCollapseEffect implements DegradeEffect {
                 if (state.isAir() || !isOrphaned(ctx, neighbor, state)) {
                     continue;
                 }
-                ctx.removeBlock(neighbor);
+                if (!ctx.removeBlock(neighbor)) {
+                    continue;
+                }
                 removed.add(key);
                 frontier.enqueue(key);
                 if (--budget == 0) {

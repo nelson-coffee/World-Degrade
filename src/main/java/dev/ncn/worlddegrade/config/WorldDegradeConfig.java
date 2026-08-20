@@ -214,4 +214,8 @@ public final class WorldDegradeConfig {
     public static boolean unknownBreakEnabled() {
         return ServerConfig.CONFIG.enableUnknownBreak.get();
     }
+
+    public static boolean protectFilledContainersEnabled() {
+        return ServerConfig.CONFIG.protectFilledContainers.get();
+    }
 }
