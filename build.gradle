@@ -37,6 +37,9 @@ dependencies {
     // Exposure, for PhotographFrameEntity's get/setItem. Supplementaries needs
     // no dependency — its globes are swapped by registry id.
     compileOnly("maven.modrinth:exposure:${exposure_version}") { transitive = false }
+    // Open Parties and Claims (#6), for its addon-register event and claims API. Soft dependency:
+    // the mod runs fine without it, the OPAC compat simply stays inactive.
+    compileOnly("maven.modrinth:open-parties-and-claims:${opac_version}") { transitive = false }
 
     sableCompanion("maven.modrinth:sable:${sable_version}") { transitive = false }
     compileOnly fileTree(sableCompanionDir) {

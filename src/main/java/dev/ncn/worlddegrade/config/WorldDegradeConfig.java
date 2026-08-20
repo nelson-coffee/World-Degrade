@@ -2,6 +2,8 @@ package dev.ncn.worlddegrade.config;
 
 import com.mojang.logging.LogUtils;
 import dev.ncn.worlddegrade.WorldDegrade;
+import dev.ncn.worlddegrade.schedule.DegradeSchedule;
+import dev.ncn.worlddegrade.schedule.ScheduleSource;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -22,6 +24,8 @@ public final class WorldDegradeConfig {
     private static final Logger LOGGER = LogUtils.getLogger();
 
     private static volatile Set<String> disabledDimensions = Set.of();
+    private static volatile DegradeSchedule schedule = new DegradeSchedule(List.of());
+    private static volatile DegradeSchedule opacSchedule = new DegradeSchedule(List.of());
 
     private WorldDegradeConfig() {
     }
@@ -32,24 +36,30 @@ public final class WorldDegradeConfig {
 
     public static void onLoad(ModConfigEvent.Loading event) {
         if (event.getConfig().getSpec() == ServerConfig.SPEC) {
-            refreshDisabledDimensions();
+            refresh();
         }
     }
 
     public static void onReload(ModConfigEvent.Reloading event) {
         if (event.getConfig().getSpec() == ServerConfig.SPEC) {
-            refreshDisabledDimensions();
+            refresh();
         }
     }
 
     public static void onUnload(ModConfigEvent.Unloading event) {
         if (event.getConfig().getSpec() == ServerConfig.SPEC) {
             disabledDimensions = Set.of();
+            schedule = new DegradeSchedule(List.of());
+            opacSchedule = new DegradeSchedule(List.of());
         }
     }
 
-    private static void refreshDisabledDimensions() {
+    private static void refresh() {
         disabledDimensions = normalizeDimensions(ServerConfig.CONFIG.disabledDimensions.get());
+        schedule = DegradeSchedule.fromConfig(ServerConfig.CONFIG.passDelays.get(),
+                ServerConfig.CONFIG.passLevels.get());
+        opacSchedule = DegradeSchedule.fromConfig(ServerConfig.CONFIG.opacCustomPassDelays.get(),
+                ServerConfig.CONFIG.opacCustomPassLevels.get());
     }
 
     /**
@@ -105,6 +115,52 @@ public final class WorldDegradeConfig {
 
     public static int chunksPerTick() {
         return ServerConfig.CONFIG.chunksPerTick.get();
+    }
+
+    public static boolean scheduleEnabled() {
+        return ServerConfig.CONFIG.enableSchedule.get();
+    }
+
+    /** The normalized, cached global pass table. Refreshed on config load/reload. */
+    public static DegradeSchedule schedule() {
+        return schedule;
+    }
+
+    /**
+     * The pass table for a given source: OPAC's own when it is enabled and configured to use it,
+     * otherwise the shared global table. Read live so admin edits reach in-flight schedules.
+     */
+    public static DegradeSchedule schedule(ScheduleSource source) {
+        return source == ScheduleSource.OPAC && opacUseCustomSchedule() ? opacSchedule : schedule;
+    }
+
+    public static int releaseBlockThreshold() {
+        return ServerConfig.CONFIG.releaseBlockThreshold.get();
+    }
+
+    /** The inhabited-check threshold for a given source (OPAC has its own override). */
+    public static int threshold(ScheduleSource source) {
+        return source == ScheduleSource.OPAC ? opacReleaseBlockThreshold() : releaseBlockThreshold();
+    }
+
+    public static boolean opacEnabled() {
+        return ServerConfig.CONFIG.opacEnabled.get();
+    }
+
+    public static boolean opacUseCustomSchedule() {
+        return ServerConfig.CONFIG.opacUseCustomSchedule.get();
+    }
+
+    public static int opacReleaseBlockThreshold() {
+        return ServerConfig.CONFIG.opacReleaseBlockThreshold.get();
+    }
+
+    public static ClaimRemovalTiming opacRemoveClaimAfter() {
+        return ServerConfig.CONFIG.opacRemoveClaimAfter.get();
+    }
+
+    public static boolean schematicannonCountsAsInhabited() {
+        return ServerConfig.CONFIG.schematicannonCountsAsInhabited.get();
     }
 
     public static boolean burntBlockVariantsEnabled() {

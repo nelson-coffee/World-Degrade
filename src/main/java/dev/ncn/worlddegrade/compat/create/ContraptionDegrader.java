@@ -8,12 +8,14 @@ import com.simibubi.create.content.trains.entity.CarriageContraptionEntity;
 import com.simibubi.create.content.trains.entity.Train;
 import dev.ncn.worlddegrade.compat.CompatManager;
 import dev.ncn.worlddegrade.compat.RunWork;
+import dev.ncn.worlddegrade.degrade.DegradeArea;
 import dev.ncn.worlddegrade.degrade.DegradeChances;
 import dev.ncn.worlddegrade.degrade.DegradeContext;
 import dev.ncn.worlddegrade.degrade.effects.DegradeEffect;
 import dev.ncn.worlddegrade.tracking.PlacementTracker;
 import dev.ncn.worlddegrade.undo.UndoManager;
 import dev.ncn.worlddegrade.undo.UndoSnapshot;
+import org.jetbrains.annotations.Nullable;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
@@ -49,6 +51,7 @@ public class ContraptionDegrader implements RunWork {
     private final ServerLevel level;
     private final DegradeChances chances;
     private final boolean wholeWorld;
+    @Nullable
     private final UUID operatorId;
     private final long runSeed;
 
@@ -65,20 +68,21 @@ public class ContraptionDegrader implements RunWork {
     private boolean bucketed;
     private int changedBlocks;
 
-    public ContraptionDegrader(ServerPlayer operator, DegradeChances chances, boolean wholeWorld, int radius) {
-        this.level = operator.serverLevel();
+    public ContraptionDegrader(ServerLevel level, DegradeArea area, DegradeChances chances,
+                               @Nullable UUID operator) {
+        this.level = level;
         this.chances = chances;
-        this.wholeWorld = wholeWorld;
-        this.operatorId = operator.getUUID();
+        this.wholeWorld = area.isWholeDimension();
+        this.operatorId = operator;
         this.runSeed = level.getRandom().nextLong();
 
-        AABB scanBox = wholeWorld
-                ? new AABB(-30_000_000, level.getMinBuildHeight(), -30_000_000,
-                        30_000_000, level.getMaxBuildHeight(), 30_000_000)
-                : new AABB(operator.getX() - radius, level.getMinBuildHeight(), operator.getZ() - radius,
-                        operator.getX() + radius, level.getMaxBuildHeight(), operator.getZ() + radius);
+        // scanBounds is only a broad phase — for a disjoint Chunks area its hull spans every column
+        // between the claims. Re-filter on each contraption's anchor column so a run cannot reach
+        // contraptions the area never selected.
+        AABB scanBox = area.scanBounds(level.getMinBuildHeight(), level.getMaxBuildHeight());
         List<AbstractContraptionEntity> found = level.getEntitiesOfClass(
-                AbstractContraptionEntity.class, scanBox, e -> e.isAlive());
+                AbstractContraptionEntity.class, scanBox,
+                e -> e.isAlive() && isAnchoredInArea(e, area));
 
         Map<UUID, Train> trains = new HashMap<>();
         for (AbstractContraptionEntity entity : found) {
@@ -99,6 +103,16 @@ public class ContraptionDegrader implements RunWork {
 
     public boolean hasWork() {
         return totalTargets > 0;
+    }
+
+    @Override
+    public int targetCount() {
+        return totalTargets;
+    }
+
+    private static boolean isAnchoredInArea(AbstractContraptionEntity entity, DegradeArea area) {
+        Vec3 anchor = entity.getAnchorVec();
+        return area.containsColumn(anchor.x, anchor.z);
     }
 
     @Override
@@ -140,9 +154,11 @@ public class ContraptionDegrader implements RunWork {
         if (wholeWorld) {
             markPending();
         }
-        ServerPlayer operator = level.getServer().getPlayerList().getPlayer(operatorId);
-        if (operator != null && totalTargets > 0) {
-            operator.sendSystemMessage(Component.translatable("chat.worlddegrade.contraptions", totalTargets));
+        if (operatorId != null && totalTargets > 0) {
+            ServerPlayer operator = level.getServer().getPlayerList().getPlayer(operatorId);
+            if (operator != null) {
+                operator.sendSystemMessage(Component.translatable("chat.worlddegrade.contraptions", totalTargets));
+            }
         }
     }
 

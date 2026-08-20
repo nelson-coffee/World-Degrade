@@ -3,6 +3,8 @@
 
 # Log file
 *.log
+# Rotated logs a dev run writes to logs/ at the repo root (*.log misses the .gz)
+logs/
 
 # BlueJ files
 *.ctxt

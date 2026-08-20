@@ -14,6 +14,7 @@ import net.minecraft.nbt.NbtAccounter;
 import net.minecraft.nbt.NbtIo;
 import net.minecraft.network.chat.Component;
 import net.minecraft.nbt.NbtUtils;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
@@ -36,8 +37,11 @@ public final class UndoManager {
     private static UndoSnapshot latest;
     private static RestoreJob restoreJob;
 
-    public static void beginRun(ServerLevel level) {
-        latest = new UndoSnapshot(level.dimension());
+    /** Takes the dimension key rather than the level so the {@code saveUndo} opt-out is testable. */
+    public static void beginRun(ResourceKey<Level> dimension, boolean saveUndo) {
+        latest = saveUndo
+                ? new UndoSnapshot(dimension)
+                : UndoSnapshot.discarding(dimension);
     }
 
     public static UndoSnapshot current() {
@@ -50,6 +54,12 @@ public final class UndoManager {
 
     public static void finishRun(MinecraftServer server) {
         if (latest == null) {
+            return;
+        }
+        // A non-recording run opted out of undo: skip the disk write and leave any existing
+        // snapshot from an earlier manual run untouched, so that manual undo still works.
+        if (!latest.isRecording()) {
+            latest = null;
             return;
         }
         try {

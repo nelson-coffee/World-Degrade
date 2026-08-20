@@ -6,6 +6,7 @@ import com.simibubi.create.content.trains.entity.CarriageContraptionEntity;
 import dev.ncn.worlddegrade.compat.CompatManager;
 import dev.ncn.worlddegrade.compat.ModCompat;
 import dev.ncn.worlddegrade.compat.RunWork;
+import dev.ncn.worlddegrade.degrade.DegradeArea;
 import dev.ncn.worlddegrade.degrade.DegradeChances;
 import dev.ncn.worlddegrade.degrade.DegradeContext;
 import dev.ncn.worlddegrade.degrade.DegradeLevel;
@@ -13,11 +14,11 @@ import net.minecraft.core.BlockPos;
 import dev.ncn.worlddegrade.degrade.effects.DegradeEffect;
 import dev.ncn.worlddegrade.undo.UndoSnapshot;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import org.jetbrains.annotations.Nullable;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
@@ -27,6 +28,7 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 import java.util.ArrayDeque;
 import java.util.List;
+import java.util.UUID;
 import java.util.function.BiConsumer;
 
 public class CreateCompat implements ModCompat {
@@ -89,13 +91,14 @@ public class CreateCompat implements ModCompat {
     }
 
     @Override
-    public List<RunWork> createRunWork(ServerPlayer operator, DegradeChances chances, boolean wholeWorld, int radius) {
-        ContraptionDegrader degrader = new ContraptionDegrader(operator, chances, wholeWorld, radius);
-        return degrader.hasWork() || wholeWorld ? List.of(degrader) : List.of();
+    public List<RunWork> createRunWork(ServerLevel level, DegradeArea area,
+                                       DegradeChances chances, @Nullable UUID operator) {
+        ContraptionDegrader degrader = new ContraptionDegrader(level, area, chances, operator);
+        return degrader.hasWork() || area.isWholeDimension() ? List.of(degrader) : List.of();
     }
 
     @Override
-    public void onServerStopping() {
+    public void onServerStopping(MinecraftServer server) {
         ON_LOAD_QUEUE.clear();
     }
 
@@ -149,7 +152,7 @@ public class CreateCompat implements ModCompat {
             return;
         }
         ON_LOAD_QUEUE.poll();
-        UndoSnapshot discarded = new UndoSnapshot(target.level.dimension());
+        UndoSnapshot discarded = UndoSnapshot.discarding(target.level.dimension());
         List<DegradeEffect> effects = CompatManager.createEffects();
         long seed = target.level.getRandom().nextLong();
         LongOpenHashSet materialized = target.train != null
