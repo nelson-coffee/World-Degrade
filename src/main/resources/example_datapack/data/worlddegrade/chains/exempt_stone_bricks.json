@@ -1,0 +1,6 @@
+{
+  "type": "worlddegrade:block_category",
+  "category": "exempt",
+  "add": ["minecraft:stone_bricks"],
+  "remove": []
+}
