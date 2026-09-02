@@ -99,7 +99,7 @@ public final class DegradeCommand {
                                                                 .then(Commands.argument("expireClaims", BoolArgumentType.bool())
                                                                         .executes(context -> opacSimulate(context,
                                                                                 BoolArgumentType.getBool(context, "expireClaims"))))))))))
-                .then(Commands.literal("playerblockset")
+                .then(Commands.literal("GetStructureMarkingWand")
                         .executes(context -> {
                             ServerPlayer player = context.getSource().getPlayerOrException();
                             ItemStack wand = new ItemStack(ModItems.MARKER_WAND.get());
