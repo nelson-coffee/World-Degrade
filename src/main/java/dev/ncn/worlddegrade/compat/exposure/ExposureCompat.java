@@ -21,6 +21,11 @@ public class ExposureCompat implements ModCompat {
     }
 
     @Override
+    public List<dev.ncn.worlddegrade.degrade.NestedItems.Opener> nestedOpeners() {
+        return List.of(new CameraOpener());
+    }
+
+    @Override
     public void onUndo(MinecraftServer server, CompoundTag compatSection) {
         PhotographFrameAgeEffect.restore(server, compatSection);
     }

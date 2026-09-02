@@ -218,4 +218,20 @@ public final class WorldDegradeConfig {
     public static boolean protectFilledContainersEnabled() {
         return ServerConfig.CONFIG.protectFilledContainers.get();
     }
+
+    public static boolean lootNestedInventoriesEnabled() {
+        return ServerConfig.CONFIG.lootNestedInventories.get();
+    }
+
+    public static boolean lootEnderChestsEnabled() {
+        return ServerConfig.CONFIG.lootEnderChests.get();
+    }
+
+    public static int enderLootExpiryDays() {
+        return ServerConfig.CONFIG.enderLootExpiryDays.get();
+    }
+
+    public static int nestedStackBudget() {
+        return ServerConfig.CONFIG.nestedStackBudget.get();
+    }
 }

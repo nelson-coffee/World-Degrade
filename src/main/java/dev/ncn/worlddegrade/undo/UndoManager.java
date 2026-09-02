@@ -160,6 +160,9 @@ public final class UndoManager {
             }
             if (cursor >= records.size()) {
                 CompatManager.onUndo(level.getServer(), snapshot::compatSection);
+                dev.ncn.worlddegrade.degrade.effects.EnderChestLootEffect.onUndo(level.getServer(),
+                        snapshot.compatSection(
+                                dev.ncn.worlddegrade.degrade.effects.EnderChestLootEffect.UNDO_KEY));
                 source.sendSuccess(() -> Component.translatable("chat.worlddegrade.undo.done", records.size()), true);
                 return true;
             }

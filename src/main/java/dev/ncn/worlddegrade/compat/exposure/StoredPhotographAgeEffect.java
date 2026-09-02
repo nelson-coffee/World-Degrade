@@ -1,6 +1,7 @@
 package dev.ncn.worlddegrade.compat.exposure;
 
 import dev.ncn.worlddegrade.degrade.DegradeContext;
+import dev.ncn.worlddegrade.degrade.NestedItems;
 import dev.ncn.worlddegrade.degrade.effects.DegradeEffect;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.item.ItemStack;
@@ -21,22 +22,32 @@ public class StoredPhotographAgeEffect implements DegradeEffect {
             if (!(handler instanceof IItemHandlerModifiable inventory)) {
                 continue;
             }
-            boolean recorded = false;
-            for (int slot = 0; slot < inventory.getSlots(); slot++) {
-                ItemStack stack = inventory.getStackInSlot(slot);
-                if (stack.isEmpty() || !stack.is(ExposurePhotographs.photograph())) {
-                    continue;
+            boolean[] recorded = {false};
+            NestedItems.StackVisitor visitor = stack -> {
+                if (!stack.is(ExposurePhotographs.photograph())
+                        || !ctx.roll(ctx.chances.brickWeatherChance())) {
+                    return stack;
                 }
-                if (!ctx.roll(ctx.chances.brickWeatherChance())) {
-                    continue;
-                }
-                if (!recorded) {
+                if (!recorded[0]) {
                     ctx.recordForUndo(pos);
-                    recorded = true;
+                    recorded[0] = true;
                 }
-                inventory.setStackInSlot(slot,
-                        stack.transmuteCopy(ExposurePhotographs.agedPhotograph(), stack.getCount()));
                 ctx.markChanged();
+                return stack.transmuteCopy(ExposurePhotographs.agedPhotograph(), stack.getCount());
+            };
+            if (ctx.nested()) {
+                NestedItems.walk(inventory, visitor, ctx.newStackBudget(pos));
+            } else {
+                for (int slot = 0; slot < inventory.getSlots(); slot++) {
+                    ItemStack stack = inventory.getStackInSlot(slot);
+                    if (stack.isEmpty()) {
+                        continue;
+                    }
+                    ItemStack result = visitor.visit(stack);
+                    if (result != stack) {
+                        inventory.setStackInSlot(slot, result);
+                    }
+                }
             }
         }
     }

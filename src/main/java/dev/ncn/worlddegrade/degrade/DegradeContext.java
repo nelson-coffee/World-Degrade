@@ -31,6 +31,8 @@ public class DegradeContext {
     private final UndoSnapshot undo;
     private final long[] positions;
     private final boolean protectFilledContainers;
+    private final boolean nested;
+    private final int nestedBudget;
     private int changedBlocks;
 
     public DegradeContext(ServerLevel level, DegradeChances chances, UndoSnapshot undo,
@@ -42,6 +44,17 @@ public class DegradeContext {
         this.positions = positions;
         this.runSeed = runSeed;
         this.protectFilledContainers = WorldDegradeConfig.protectFilledContainersEnabled();
+        this.nested = WorldDegradeConfig.lootNestedInventoriesEnabled();
+        this.nestedBudget = WorldDegradeConfig.nestedStackBudget();
+    }
+
+    /** Whether effects should descend into container items rather than only the top level. */
+    public boolean nested() {
+        return nested;
+    }
+
+    public NestedItems.Budget newStackBudget(BlockPos pos) {
+        return new NestedItems.Budget(nestedBudget, pos.toShortString());
     }
 
     public long[] positions() {

@@ -1,6 +1,7 @@
 package dev.ncn.worlddegrade.degrade.effects;
 
 import dev.ncn.worlddegrade.degrade.DegradeContext;
+import dev.ncn.worlddegrade.degrade.NestedItems;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.item.ItemStack;
@@ -60,22 +61,36 @@ public class ContainerLootEffect implements DegradeEffect {
 
     private static void lootHandler(DegradeContext ctx, BlockPos pos, IItemHandlerModifiable inventory) {
         ctx.recordForUndo(pos);
-        boolean changed = false;
         float keep = ctx.chances.containerKeepFraction();
+        // Contents of a surviving container item are rolled independently at the same fraction.
+        NestedItems.StackVisitor visitor = stack -> {
+            int surviving = survivingCount(ctx, stack.getCount(), keep);
+            return surviving == stack.getCount() ? stack
+                    : surviving == 0 ? ItemStack.EMPTY : stack.copyWithCount(surviving);
+        };
+        boolean changed = ctx.nested()
+                ? NestedItems.walk(inventory, visitor, ctx.newStackBudget(pos))
+                : lootTopLevelOnly(inventory, visitor);
+        if (changed) {
+            ctx.markChanged();
+        }
+    }
+
+    private static boolean lootTopLevelOnly(IItemHandlerModifiable inventory,
+                                            NestedItems.StackVisitor visitor) {
+        boolean changed = false;
         for (int slot = 0; slot < inventory.getSlots(); slot++) {
             ItemStack stack = inventory.getStackInSlot(slot);
             if (stack.isEmpty()) {
                 continue;
             }
-            int surviving = survivingCount(ctx, stack.getCount(), keep);
-            if (surviving != stack.getCount()) {
-                inventory.setStackInSlot(slot, surviving == 0 ? ItemStack.EMPTY : stack.copyWithCount(surviving));
+            ItemStack result = visitor.visit(stack);
+            if (result != stack) {
+                inventory.setStackInSlot(slot, result);
                 changed = true;
             }
         }
-        if (changed) {
-            ctx.markChanged();
-        }
+        return changed;
     }
 
     public static int survivingCount(DegradeContext ctx, int count, float keepFraction) {

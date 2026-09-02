@@ -43,6 +43,14 @@ public interface ModCompat {
     default void onUndo(MinecraftServer server, CompoundTag compatSection) {
     }
 
+    /**
+     * Openers for this mod's container items whose contents are not reachable through the vanilla
+     * {@code ItemHandler.ITEM} capability.
+     */
+    default List<dev.ncn.worlddegrade.degrade.NestedItems.Opener> nestedOpeners() {
+        return List.of();
+    }
+
     default void onServerStopping(MinecraftServer server) {
     }
 

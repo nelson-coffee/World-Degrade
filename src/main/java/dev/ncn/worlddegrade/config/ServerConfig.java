@@ -37,9 +37,13 @@ public final class ServerConfig {
     final ModConfigSpec.BooleanValue enableVanillaDecay;
     final ModConfigSpec.BooleanValue enableUnknownBreak;
     final ModConfigSpec.BooleanValue protectFilledContainers;
+    final ModConfigSpec.BooleanValue lootNestedInventories;
+    final ModConfigSpec.BooleanValue lootEnderChests;
+    final ModConfigSpec.IntValue enderLootExpiryDays;
 
     // Performance
     final ModConfigSpec.IntValue chunksPerTick;
+    final ModConfigSpec.IntValue nestedStackBudget;
 
     // Schedule (progressive multi-pass degradation, #5)
     final ModConfigSpec.BooleanValue enableSchedule;
@@ -105,6 +109,20 @@ public final class ServerConfig {
         enableVanillaDecay = builder.comment("Apply vanilla block wear transitions.").define("enableVanillaDecay", true);
         enableUnknownBreak = builder.comment("Break otherwise-unhandled blocks that have no specific effect.").define("enableUnknownBreak", true);
         protectFilledContainers = builder.comment("Only destroy containers once they are empty.").define("protectFilledContainers", true);
+        lootNestedInventories = builder
+                .comment("Loot inside container items too (shulker boxes, bundles, modded backpacks,",
+                        "Exposure cameras), instead of treating a loaded shulker as one opaque item.")
+                .define("lootNestedInventories", true);
+        lootEnderChests = builder
+                .comment("Loot every player's ender chest inventory when an ender chest is degraded.",
+                        "Ender chest contents live in player data rather than the block, so this reaches",
+                        "personal storage from an unrelated ruin. Each ender chest block only ever loots",
+                        "once; offline players are looted the next time they log in.")
+                .define("lootEnderChests", true);
+        enderLootExpiryDays = builder
+                .comment("Drop pending ender chest loot for players who have not logged in for this many",
+                        "real days, so the pending queue cannot grow without bound.")
+                .defineInRange("enderLootExpiryDays", 30, 1, 3650);
 
         builder.pop();
 
@@ -113,6 +131,11 @@ public final class ServerConfig {
         chunksPerTick = builder
                 .comment("How many chunks to process per server tick during a degradation run. Lower is gentler on the server.")
                 .defineInRange("chunksPerTick", 4, 1, 64);
+        nestedStackBudget = builder
+                .comment("Maximum item stacks visited when looting inside container items, per container.",
+                        "Nesting is exponential, so a hand-crafted deeply nested item could otherwise hang",
+                        "the server. The default is far above any real inventory.")
+                .defineInRange("nestedStackBudget", 10000, 64, 1000000);
 
         builder.pop();
 

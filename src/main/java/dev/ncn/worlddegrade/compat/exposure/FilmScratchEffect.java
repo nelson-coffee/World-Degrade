@@ -3,6 +3,7 @@ package dev.ncn.worlddegrade.compat.exposure;
 import com.mojang.logging.LogUtils;
 import dev.ncn.worlddegrade.degrade.DegradeContext;
 import dev.ncn.worlddegrade.degrade.DegradeLevel;
+import dev.ncn.worlddegrade.degrade.NestedItems;
 import dev.ncn.worlddegrade.degrade.effects.DegradeEffect;
 import io.github.mortuusars.exposure.Exposure;
 import io.github.mortuusars.exposure.ExposureServer;
@@ -76,21 +77,39 @@ public class FilmScratchEffect implements DegradeEffect {
             if (!(handler instanceof IItemHandlerModifiable inventory)) {
                 continue;
             }
-            for (int slot = 0; slot < inventory.getSlots(); slot++) {
-                ItemStack stack = inventory.getStackInSlot(slot);
-                if (stack.isEmpty() || !(stack.getItem() instanceof FilmItem film)) {
-                    continue;
+            // Returns a modified copy rather than editing in place: some handlers hand out copies,
+            // so an in-place edit inside a shulker or camera would be silently dropped.
+            NestedItems.StackVisitor visitor = stack -> {
+                if (!(stack.getItem() instanceof FilmItem film)) {
+                    return stack;
                 }
                 List<Frame> frames = film.getStoredFrames(stack);
                 if (frames.isEmpty() || !ctx.roll(chance)) {
-                    continue;
+                    return stack;
                 }
                 currentPass(ctx);
                 List<Frame> scratched = scratchFrames(ctx, frames, chance);
-                if (scratched != null) {
-                    ctx.recordForUndo(pos);
-                    stack.set(Exposure.DataComponents.FILM_FRAMES, scratched);
-                    ctx.markChanged();
+                if (scratched == null) {
+                    return stack;
+                }
+                ctx.recordForUndo(pos);
+                ItemStack updated = stack.copy();
+                updated.set(Exposure.DataComponents.FILM_FRAMES, scratched);
+                ctx.markChanged();
+                return updated;
+            };
+            if (ctx.nested()) {
+                NestedItems.walk(inventory, visitor, ctx.newStackBudget(pos));
+            } else {
+                for (int slot = 0; slot < inventory.getSlots(); slot++) {
+                    ItemStack stack = inventory.getStackInSlot(slot);
+                    if (stack.isEmpty()) {
+                        continue;
+                    }
+                    ItemStack result = visitor.visit(stack);
+                    if (result != stack) {
+                        inventory.setStackInSlot(slot, result);
+                    }
                 }
             }
         }

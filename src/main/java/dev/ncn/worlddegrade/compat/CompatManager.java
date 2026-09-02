@@ -86,6 +86,8 @@ public final class CompatManager {
         }
         effects.add(new DoorBreakEffect(WorldDegradeConfig.doorBreakEnabled()));
         effects.add(new ContainerLootEffect(WorldDegradeConfig.containerLootEnabled()));
+        effects.add(new dev.ncn.worlddegrade.degrade.effects.EnderChestLootEffect(
+                WorldDegradeConfig.lootEnderChestsEnabled()));
         effects.add(new LightSnuffEffect(WorldDegradeConfig.lightSnuffEnabled(),
                 WorldDegradeConfig.burntBlockVariantsEnabled()));
         if (WorldDegradeConfig.portalBreakEnabled()) {
@@ -118,6 +120,24 @@ public final class CompatManager {
             effects.addAll(compat.createShipOnlyEffects());
         }
         return effects;
+    }
+
+    private static List<dev.ncn.worlddegrade.degrade.NestedItems.Opener> nestedOpeners;
+
+    /** Cached because this is consulted per container stack during a walk. */
+    public static List<dev.ncn.worlddegrade.degrade.NestedItems.Opener> nestedOpeners() {
+        if (nestedOpeners == null) {
+            List<dev.ncn.worlddegrade.degrade.NestedItems.Opener> openers = new ArrayList<>();
+            for (ModCompat compat : ACTIVE) {
+                try {
+                    openers.addAll(compat.nestedOpeners());
+                } catch (Throwable t) {
+                    LOGGER.error("World Degrade: {} compat failed to contribute nested openers", compat.modId(), t);
+                }
+            }
+            nestedOpeners = List.copyOf(openers);
+        }
+        return nestedOpeners;
     }
 
     public static List<RunWork> collectRunWork(ServerLevel level, DegradeArea area,

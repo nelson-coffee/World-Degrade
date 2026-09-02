@@ -1,6 +1,7 @@
 package dev.ncn.worlddegrade.compat.computercraft;
 
 import dev.ncn.worlddegrade.degrade.DegradeContext;
+import dev.ncn.worlddegrade.degrade.NestedItems;
 import dev.ncn.worlddegrade.degrade.effects.DegradeEffect;
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import net.minecraft.core.BlockPos;
@@ -10,6 +11,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.neoforged.neoforge.capabilities.Capabilities;
 import net.neoforged.neoforge.items.IItemHandler;
+import net.neoforged.neoforge.items.IItemHandlerModifiable;
 
 public class ComputerCorruptionEffect implements DegradeEffect {
     static final String UNDO_KEY = "computercraft";
@@ -70,16 +72,25 @@ public class ComputerCorruptionEffect implements DegradeEffect {
         if (handler == null) {
             return;
         }
-        boolean found = false;
-        for (int slot = 0; slot < handler.getSlots(); slot++) {
-            ItemStack stack = handler.getStackInSlot(slot);
+        boolean[] found = {false};
+        // Read-only walk: disk ids are collected here and the files garbled later, so the visitor
+        // never replaces a stack.
+        NestedItems.StackVisitor visitor = stack -> {
             Integer diskId = ComputerStorage.diskId(stack);
             if (diskId != null) {
                 disks.add(diskId.intValue());
-                found = true;
+                found[0] = true;
+            }
+            return stack;
+        };
+        if (ctx.nested() && handler instanceof IItemHandlerModifiable modifiable) {
+            NestedItems.walk(modifiable, visitor, ctx.newStackBudget(pos));
+        } else {
+            for (int slot = 0; slot < handler.getSlots(); slot++) {
+                visitor.visit(handler.getStackInSlot(slot));
             }
         }
-        if (found) {
+        if (found[0]) {
             ctx.claim(pos);
         }
     }
