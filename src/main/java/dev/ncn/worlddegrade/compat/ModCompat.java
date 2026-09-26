@@ -51,6 +51,14 @@ public interface ModCompat {
         return List.of();
     }
 
+    default boolean holdsItems(ServerLevel level, BlockPos pos) {
+        return false;
+    }
+
+    default List<dev.ncn.worlddegrade.degrade.effects.EntityLooter> entityLooters() {
+        return List.of();
+    }
+
     default void onServerStopping(MinecraftServer server) {
     }
 

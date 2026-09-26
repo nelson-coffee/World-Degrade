@@ -50,6 +50,7 @@ public final class CompatManager {
         register("computercraft", () -> new dev.ncn.worlddegrade.compat.computercraft.ComputerCraftCompat());
         register("rechiseled", () -> new dev.ncn.worlddegrade.compat.rechiseled.RechiseledCompat());
         register("openpartiesandclaims", () -> new dev.ncn.worlddegrade.compat.opac.OpacCompat());
+        register("lootr", () -> new dev.ncn.worlddegrade.compat.lootr.LootrCompat());
     }
 
     private static void register(String modId, Supplier<ModCompat> factory) {
@@ -88,6 +89,8 @@ public final class CompatManager {
         effects.add(new ContainerLootEffect(WorldDegradeConfig.containerLootEnabled()));
         effects.add(new dev.ncn.worlddegrade.degrade.effects.EnderChestLootEffect(
                 WorldDegradeConfig.lootEnderChestsEnabled()));
+        effects.add(new dev.ncn.worlddegrade.degrade.effects.EntityLootEffect(
+                WorldDegradeConfig.containerLootEnabled()));
         effects.add(new LightSnuffEffect(WorldDegradeConfig.lightSnuffEnabled(),
                 WorldDegradeConfig.burntBlockVariantsEnabled()));
         if (WorldDegradeConfig.portalBreakEnabled()) {
@@ -151,6 +154,37 @@ public final class CompatManager {
             }
         }
         return work;
+    }
+
+    private static List<dev.ncn.worlddegrade.degrade.effects.EntityLooter> entityLooters;
+
+    /** Cached because this is consulted per entity during a chunk scan. */
+    public static List<dev.ncn.worlddegrade.degrade.effects.EntityLooter> entityLooters() {
+        if (entityLooters == null) {
+            List<dev.ncn.worlddegrade.degrade.effects.EntityLooter> looters = new ArrayList<>();
+            for (ModCompat compat : ACTIVE) {
+                try {
+                    looters.addAll(compat.entityLooters());
+                } catch (Throwable t) {
+                    LOGGER.error("World Degrade: {} compat failed to contribute entity looters", compat.modId(), t);
+                }
+            }
+            entityLooters = List.copyOf(looters);
+        }
+        return entityLooters;
+    }
+
+    public static boolean holdsItems(ServerLevel level, net.minecraft.core.BlockPos pos) {
+        for (ModCompat compat : ACTIVE) {
+            try {
+                if (compat.holdsItems(level, pos)) {
+                    return true;
+                }
+            } catch (Throwable t) {
+                LOGGER.error("World Degrade: {} compat failed during held-item check", compat.modId(), t);
+            }
+        }
+        return false;
     }
 
     public static boolean shouldRestore(net.minecraft.server.level.ServerLevel level, net.minecraft.core.BlockPos pos) {

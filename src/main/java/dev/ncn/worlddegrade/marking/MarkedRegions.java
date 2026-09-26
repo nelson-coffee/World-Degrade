@@ -34,6 +34,21 @@ public class MarkedRegions extends SavedData {
             return chunkPos.getMaxBlockX() >= min.getX() && chunkPos.getMinBlockX() <= max.getX()
                     && chunkPos.getMaxBlockZ() >= min.getZ() && chunkPos.getMinBlockZ() <= max.getZ();
         }
+
+        public boolean containsBlock(BlockPos pos) {
+            return pos.getX() >= min.getX() && pos.getX() <= max.getX()
+                    && pos.getY() >= min.getY() && pos.getY() <= max.getY()
+                    && pos.getZ() >= min.getZ() && pos.getZ() <= max.getZ();
+        }
+    }
+
+    public boolean containsBlock(BlockPos pos) {
+        for (Region region : regions) {
+            if (region.containsBlock(pos)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private final List<Region> regions = new ArrayList<>();

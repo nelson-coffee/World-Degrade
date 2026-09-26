@@ -13,7 +13,14 @@ public class CreateLootEffect implements DegradeEffect {
     public void apply(DegradeContext ctx) {
         for (long packed : ctx.positions()) {
             BlockPos pos = BlockPos.of(packed);
-            if (!(ctx.blockEntity(pos) instanceof ItemVaultBlockEntity vault)) {
+            net.minecraft.world.level.block.entity.BlockEntity blockEntity = ctx.blockEntity(pos);
+            if (CreateItemHolders.handles(blockEntity)) {
+                if (ctx.claimLoot(pos)) {
+                    CreateItemHolders.loot(ctx, pos, blockEntity);
+                }
+                continue;
+            }
+            if (!(blockEntity instanceof ItemVaultBlockEntity vault)) {
                 continue;
             }
             if (!ctx.claimLoot(pos)) {

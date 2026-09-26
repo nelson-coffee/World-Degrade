@@ -23,7 +23,7 @@ public class ChippedCompat implements ModCompat {
 
     @Override
     public List<DegradeEffect> createEffects() {
-        return List.of(new ChippedLootEffect());
+        return List.of();
     }
 
     @Override

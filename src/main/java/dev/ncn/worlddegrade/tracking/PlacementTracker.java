@@ -61,6 +61,12 @@ public final class PlacementTracker {
         }
     }
 
+    public static boolean isTracked(ServerLevel level, BlockPos pos) {
+        LevelChunk chunk = level.getChunkAt(pos);
+        return chunk.hasData(ModAttachments.TRACKED_BLOCKS)
+                && chunk.getData(ModAttachments.TRACKED_BLOCKS).contains(pos.asLong());
+    }
+
     public static long[] trackedPositions(LevelChunk chunk) {
         if (!chunk.hasData(ModAttachments.TRACKED_BLOCKS)) {
             return new long[0];

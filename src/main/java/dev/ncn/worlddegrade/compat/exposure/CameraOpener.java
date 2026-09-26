@@ -14,6 +14,17 @@ public final class CameraOpener implements NestedItems.Opener {
             List.of(Exposure.DataComponents.FILM, Exposure.DataComponents.FLASH, Exposure.DataComponents.LENS);
 
     @Override
+    public boolean recognises(ItemStack stack) {
+        for (DataComponentType<StoredItemStack> slot : SLOTS) {
+            StoredItemStack stored = stack.get(slot);
+            if (stored != null && !stored.isEmpty()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
     public boolean open(ItemStack stack, NestedItems.StackVisitor visitor, NestedItems.Budget budget) {
         boolean recognised = false;
         for (DataComponentType<StoredItemStack> slot : SLOTS) {

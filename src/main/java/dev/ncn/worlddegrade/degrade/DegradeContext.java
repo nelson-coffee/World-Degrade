@@ -165,15 +165,14 @@ public class DegradeContext {
             return !container.isEmpty() || partnerHoldsItems(pos);
         }
         IItemHandler handler = level.getCapability(Capabilities.ItemHandler.BLOCK, pos, null);
-        if (handler == null) {
-            return false;
-        }
-        for (int slot = 0; slot < handler.getSlots(); slot++) {
-            if (!handler.getStackInSlot(slot).isEmpty()) {
-                return true;
+        if (handler != null) {
+            for (int slot = 0; slot < handler.getSlots(); slot++) {
+                if (!handler.getStackInSlot(slot).isEmpty()) {
+                    return true;
+                }
             }
         }
-        return false;
+        return dev.ncn.worlddegrade.compat.CompatManager.holdsItems(level, pos);
     }
 
     private boolean partnerHoldsItems(BlockPos pos) {

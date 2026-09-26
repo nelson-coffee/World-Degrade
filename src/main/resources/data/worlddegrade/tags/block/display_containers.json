@@ -1,0 +1,17 @@
+{
+  "replace": false,
+  "values": [
+    { "id": "supplementaries:pedestal", "required": false },
+    { "id": "supplementaries:item_shelf", "required": false },
+    { "id": "supplementaries:notice_board", "required": false },
+    { "id": "supplementaries:goblet", "required": false },
+    { "id": "supplementaries:book_pile", "required": false },
+    { "id": "supplementaries:book_pile_horizontal", "required": false },
+    { "id": "supplementaries:crystal_display", "required": false },
+    { "id": "supplementaries:flower_box", "required": false },
+    { "id": "farmersdelight:cutting_board", "required": false },
+    { "id": "farmersdelight:skillet", "required": false },
+    { "id": "tide:fish_display", "required": false },
+    { "id": "someassemblyrequired:sandwich", "required": false }
+  ]
+}

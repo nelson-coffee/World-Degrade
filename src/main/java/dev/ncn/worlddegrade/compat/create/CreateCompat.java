@@ -75,6 +75,21 @@ public class CreateCompat implements ModCompat {
     }
 
     @Override
+    public boolean holdsItems(ServerLevel level, net.minecraft.core.BlockPos pos) {
+        return CreateItemHolders.holdsItems(level.getBlockEntity(pos));
+    }
+
+    @Override
+    public List<dev.ncn.worlddegrade.degrade.NestedItems.Opener> nestedOpeners() {
+        return List.of(new PackageOpener());
+    }
+
+    @Override
+    public List<dev.ncn.worlddegrade.degrade.effects.EntityLooter> entityLooters() {
+        return List.of(new PackageEntityLooter());
+    }
+
+    @Override
     public void registerWearSteps(BiConsumer<Block, Block> sink) {
         CreatePaletteWear.register(sink);
     }

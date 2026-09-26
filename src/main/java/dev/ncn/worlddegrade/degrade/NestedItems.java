@@ -21,9 +21,12 @@ public final class NestedItems {
         ItemStack visit(ItemStack stack);
     }
 
-    @FunctionalInterface
     public interface Opener {
         boolean open(ItemStack stack, StackVisitor visitor, Budget budget);
+
+        default boolean recognises(ItemStack stack) {
+            return false;
+        }
     }
 
     public static final class Budget {
@@ -90,6 +93,25 @@ public final class NestedItems {
         return budget.changes != startingChanges;
     }
 
+    public static boolean isContainer(ItemStack stack) {
+        if (stack.isEmpty()) {
+            return false;
+        }
+        if (stack.getCapability(Capabilities.ItemHandler.ITEM) != null) {
+            return true;
+        }
+        BundleContents bundle = stack.get(DataComponents.BUNDLE_CONTENTS);
+        if (bundle != null && !bundle.isEmpty()) {
+            return true;
+        }
+        for (Opener opener : CompatManager.nestedOpeners()) {
+            if (opener.recognises(stack)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static ItemStack visitStack(ItemStack stack, StackVisitor visitor, Budget budget) {
         if (stack.isEmpty() || !budget.spend()) {
             return stack;
@@ -99,6 +121,13 @@ public final class NestedItems {
             descend(result, visitor, budget);
         }
         return result;
+    }
+
+    public static void descendInto(ItemStack stack, StackVisitor visitor, Budget budget) {
+        if (stack.isEmpty() || !budget.spend()) {
+            return;
+        }
+        descend(stack, visitor, budget);
     }
 
     private static void descend(ItemStack stack, StackVisitor visitor, Budget budget) {
