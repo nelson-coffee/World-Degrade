@@ -78,7 +78,7 @@ public final class CreateItemHolders {
             if (budget.changeCount() == before) {
                 continue;
             }
-            if (PackageOpener.hasContents(working)) {
+            if (PackageOpener.hasContents(working) && !PackageOpener.isGuardOnly(working)) {
                 carried.item = working;
             } else {
                 iterator.remove();
